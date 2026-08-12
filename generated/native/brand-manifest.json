@@ -1,0 +1,41 @@
+{
+  "brandId": "aurora",
+  "appName": "Aurora Invest",
+  "modules": [
+    "auth",
+    "qr-login",
+    "onboarding",
+    "markets",
+    "trading",
+    "portfolio",
+    "news",
+    "advanced-orders"
+  ],
+  "ios": {
+    "bundleId": "com.example.aurora",
+    "teamId": "YOUR_TEAM_ID",
+    "appStoreId": "0000000000"
+  },
+  "android": {
+    "applicationId": "com.example.aurora",
+    "playStorePackage": "com.example.aurora"
+  },
+  "deepLinks": {
+    "scheme": "aurora",
+    "hosts": [
+      "invest.aurora.example"
+    ]
+  },
+  "push": {
+    "provider": "firebase",
+    "environment": "development"
+  },
+  "channel": {
+    "id": "direct",
+    "campaign": "organic"
+  },
+  "sdkKeyNames": [
+    "analytics",
+    "marketData"
+  ]
+}

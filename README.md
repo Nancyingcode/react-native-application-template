@@ -1,0 +1,120 @@
+# React Native 白标 App 平台
+
+一个基于 React Native 0.86 + TypeScript 的 bare workflow 白标底座。项目把品牌差异约束在配置、策略/适配器和插件三个边界内，公共代码不需要 `brand === A` 分支。
+
+## 已实现
+
+- 核心底座：HTTP 请求与重试/超时、TTL 缓存、会话鉴权、结构化日志与敏感字段脱敏、同意后埋点、错误/性能监控、国际化、基础原生能力接口。
+- 统一模块协议：登录、开户、行情、交易、资产、资讯都通过 `AppModuleFactory` 注册路由、菜单、首页卡片和翻译。
+- Brand Config：名称、Logo 引用、主题 Token、品牌文案、功能开关、三套接口环境、合规声明、渠道和原生参数集中在一个 JSON 清单。
+- 动态装配：品牌清单控制模块、菜单顺序、首页布局和起始页；运行期再叠加服务端开关、登录态和用户权限。
+- 差异策略：KYC 使用策略；交易供应商使用适配器；高级订单作为完全独立、可从安装包移除的插件示例。
+- 原生生成：品牌命令同步 Android application ID、App 名称、Deep Link、渠道和签名入口，以及 iOS Bundle ID、Team、Provisioning Profile、URL Scheme 和商店元数据清单。
+- 扫码登录：独立 `qr-login` 插件提供相机权限引导、二维码扫描、设备确认、倒计时、确认/拒绝和完成状态；相机在离开页面或进入后台时停止。
+
+## 快速开始
+
+环境要求：Node.js 22.11+；Android Studio/SDK；构建 iOS 还需要 macOS 与 Xcode。
+
+```bash
+npm install
+npm run brand:generate -- aurora
+npm start
+npm run android
+```
+
+`npm run android` 会自动发现 Android SDK；若 8081 已有 Metro，则直接复用，避免端口选择提示。Gradle 首次下载允许 120 秒连接时间。若 SDK 位于非标准目录，请设置 `ANDROID_HOME`。
+
+Android 的 CMake 配置会对超长对象路径进行哈希，并在 Windows 将原生临时文件放进用户目录下的短路径，支持较深的仓库目录，无需关闭 React Native New Architecture 或修改系统注册表。可通过 `RN_CXX_BUILD_DIR` 覆盖临时目录。
+
+切换精简品牌：
+
+```bash
+npm run brand:generate -- cedar
+npm run android
+```
+
+`BRAND=cedar npm run brand:generate` 也可用于 CI。Android/iOS 命令执行前会按 `BRAND`（默认 `aurora`）重新生成，避免误打包上一品牌。
+
+## 分层
+
+```text
+src/
+├─ core/                 请求、缓存、鉴权、日志、埋点、监控、i18n、原生能力
+├─ brand/                Brand Config 类型
+├─ modules/              统一协议、注册器及六个领域模块
+├─ strategies/           流程策略和供应商适配器
+├─ plugins/              完全独立业务插件
+├─ app/                  功能门控、应用装配、运行容器和 UI Shell
+└─ brands/generated/     构建期生成的唯一品牌入口
+brands/<brand>/          品牌清单
+scripts/                 校验和原生/JS 入口生成
+generated/native/        CI 与原生工程使用的生成结果
+```
+
+关键数据流：
+
+```text
+品牌模块清单（构建期静态 import）
+        ↓
+统一模块注册器
+        ↓
+品牌功能开关 ∩ 服务端开关 ∩ 登录态/用户权限
+        ↓
+路由 + 菜单 + 首页布局
+```
+
+构建期生成的 `activeBrand.ts` 只静态导入该品牌选择的模块。例如 Cedar 不导入交易、资产和高级订单，因此这些业务不会进入它的 JS Bundle。运行期门控只能隐藏已经进入安装包的能力，不能把未打包代码“打开”。
+
+## 扫码登录协议
+
+需要扫码能力的品牌应同时在 `assembly.modules` 中加入 `qr-login`，并打开 `features.qrLogin`。生成器会为该品牌链接 VisionCamera/Nitro 原生依赖，并加入 Android/iOS 相机权限。Cedar 未选择该插件，因此生成时会禁用这些原生依赖并移除相机权限声明。
+
+二维码只允许携带短时、一次性的不透明 nonce，不信任二维码中的设备、位置或失效时间：
+
+```text
+aurora://qr-login?challenge=<16-256 位 nonce>
+https://invest.aurora.example/qr-login?challenge=<16-256 位 nonce>
+```
+
+App 扫描后通过已登录会话调用以下接口：
+
+```text
+POST /v1/auth/qr-login/resolve  { challengeId }
+-> { challengeId, deviceName, location?, expiresAt }
+
+POST /v1/auth/qr-login/confirm  { challengeId }
+POST /v1/auth/qr-login/reject   { challengeId }
+```
+
+`resolve` 返回的 challenge 必须与扫描值一致，且剩余有效期不能超过 5 分钟；确认与拒绝应由服务端保证用户绑定、一次性和幂等。所有三个接口都要求 Bearer Token，无有效 Session 时 HTTP 底座会在发送请求前拒绝。当前示例登录页仍是 UI 占位，接入真实登录接口后应通过 `services.session.setSession(...)` 建立会话。
+
+Debug 包的扫码页提供“开发环境：模拟扫码”，可在没有测试二维码时检查确认页。iOS 扫码依赖要求 deployment target 15.5 且需真机验证；Android 模拟器可在 Camera 的 Virtual Scene 中导入二维码图片。
+
+## 新增品牌
+
+1. 复制 `brands/aurora/brand.config.json` 到 `brands/<id>/brand.config.json`。
+2. 修改主题、文案、环境、合规、装配和原生配置。
+3. 执行 `npm run brand:validate`。
+4. 执行 `npm run brand:generate -- <id>`，检查 `generated/native/brand-manifest.json`。
+5. 在 CI 注入签名和第三方 SDK 密钥，再构建商店包。
+
+新增领域模块时实现 `AppModuleFactory`，并把模块的构建期映射加入 `scripts/brand-utils.js`。独立插件也遵守同一注册协议，但目录放在 `src/plugins`，公共模块不得反向依赖它。
+
+## 原生与密钥
+
+- Android keystore 路径和 alias 可写入品牌清单；密码只能通过 `BRAND_KEYSTORE_PASSWORD` 与 `BRAND_KEY_PASSWORD` 注入。缺失时 debug 构建回退到模板 debug 签名，正式发布流水线应对该情况直接失败。
+- iOS Bundle ID、Development Team、Provisioning Profile 由生成器同步到 Xcode 工程；证书私钥由 Keychain/CI 管理，不进入 Git。
+- `sdkKeys` 允许保存 `${ENV_NAME}` 占位符。生成的 manifest 仅输出 key 名，不输出值，实际值应由 CI、`.xcconfig` 或原生 secret provider 注入。
+- Logo 当前是资产引用位；各品牌应提供 Android mipmap 与 iOS AppIcon 资产，流水线可在品牌生成阶段覆盖模板资源。
+
+## 质量检查
+
+```bash
+npm run brand:validate
+npm run typecheck
+npm test
+npm run lint
+```
+
+测试覆盖模块注册冲突、构建/运行功能门控、装配顺序、缓存过期和 App 渲染。

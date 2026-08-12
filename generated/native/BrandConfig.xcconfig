@@ -1,0 +1,5 @@
+// Generated. Include from the CI/Xcode build configuration when required.
+PRODUCT_BUNDLE_IDENTIFIER = com.example.aurora
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+PROVISIONING_PROFILE_SPECIFIER = 
+BRAND_CHANNEL_ID = direct

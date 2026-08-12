@@ -1,0 +1,87 @@
+{
+  "id": "cedar",
+  "appName": "Cedar Markets",
+  "logo": "assets/brands/cedar/logo.png",
+  "defaultLocale": "en-US",
+  "supportedLocales": ["en-US"],
+  "theme": {
+    "colors": {
+      "primary": "#087F5B",
+      "primaryPressed": "#066246",
+      "background": "#F5F8F6",
+      "surface": "#FFFFFF",
+      "text": "#14251E",
+      "textMuted": "#607269",
+      "success": "#1B9A6C",
+      "warning": "#D99114",
+      "danger": "#CC4B4B",
+      "border": "#D7E2DC"
+    },
+    "radius": { "sm": 6, "md": 12, "lg": 18 },
+    "spacing": { "xs": 4, "sm": 8, "md": 16, "lg": 24, "xl": 32 },
+    "typography": { "titleSize": 30, "bodySize": 16 }
+  },
+  "copy": {
+    "en-US": {
+      "app.home": "Overview",
+      "app.quickActions": "Explore",
+      "app.disclosure": "Market information is delayed and is not investment advice.",
+      "app.environment": "Development"
+    }
+  },
+  "features": {
+    "accountOpening": true,
+    "markets": true,
+    "portfolio": false,
+    "news": true,
+    "qrLogin": false
+  },
+  "environments": {
+    "development": {
+      "apiBaseUrl": "https://dev-api.cedar.example",
+      "marketDataUrl": "wss://dev-feed.cedar.example",
+      "timeoutMs": 15000
+    },
+    "staging": {
+      "apiBaseUrl": "https://staging-api.cedar.example",
+      "marketDataUrl": "wss://staging-feed.cedar.example",
+      "timeoutMs": 12000
+    },
+    "production": {
+      "apiBaseUrl": "https://api.cedar.example",
+      "marketDataUrl": "wss://feed.cedar.example",
+      "timeoutMs": 10000
+    }
+  },
+  "compliance": {
+    "jurisdiction": "SG",
+    "riskDisclosureKey": "app.disclosure",
+    "privacyUrl": "https://cedar.example/privacy",
+    "termsUrl": "https://cedar.example/terms"
+  },
+  "native": {
+    "ios": {
+      "bundleId": "com.example.cedar",
+      "teamId": "YOUR_TEAM_ID",
+      "appStoreId": "1111111111"
+    },
+    "android": {
+      "applicationId": "com.example.cedar",
+      "playStorePackage": "com.example.cedar"
+    },
+    "deepLinks": { "scheme": "cedar", "hosts": ["app.cedar.example"] },
+    "push": { "provider": "none" },
+    "sdkKeys": {},
+    "channel": { "id": "partner-bank" },
+    "permissions": {
+      "cameraUsage": "Scan a trusted web sign-in QR code. Camera frames are not stored or uploaded."
+    }
+  },
+  "assembly": {
+    "modules": ["auth", "onboarding", "markets", "news"],
+    "menu": ["menu.markets", "menu.news", "menu.onboarding"],
+    "home": ["home.markets", "home.news", "home.onboarding"],
+    "initialRoute": "Home"
+  },
+  "strategies": { "kyc": "standard", "tradingApi": "rest" }
+}

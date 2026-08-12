@@ -1,0 +1,54 @@
+buildscript {
+    ext {
+        buildToolsVersion = "36.0.0"
+        minSdkVersion = 24
+        compileSdkVersion = 36
+        targetSdkVersion = 36
+        ndkVersion = "27.1.12297006"
+        kotlinVersion = "2.1.20"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+    }
+}
+
+// Nitro-based native modules generate deeply nested C++ object paths. Keep
+// every Android library's CMake intermediates in a short, project-specific
+// directory on Windows so Ninja does not continuously rewrite build.ninja.
+if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+    def projectHash = Integer.toHexString(rootProject.projectDir.absolutePath.hashCode())
+    def configuredCxxRoot = System.getenv("RN_CXX_BUILD_DIR")
+    def nativeBuildRoot = configuredCxxRoot
+        ? rootProject.file(configuredCxxRoot)
+        : new File(System.getProperty("user.home"), ".rn-cxx/${rootProject.name}-${projectHash}")
+    def nativeLibraryBuildRoot = new File(nativeBuildRoot, "libraries")
+    def nativeCmakeLibraries = [
+        "react-native-nitro-image",
+        "react-native-nitro-modules",
+        "react-native-vision-camera",
+        "react-native-vision-camera-barcode-scanner"
+    ] as Set
+
+    subprojects { subproject ->
+        subproject.plugins.withId("com.android.library") {
+            if (nativeCmakeLibraries.contains(subproject.name)) {
+                def androidExtension = subproject.extensions.findByName("android")
+                def safeProjectName = subproject.name.replaceAll("[^A-Za-z0-9_.-]", "_")
+                androidExtension.externalNativeBuild.cmake.buildStagingDirectory(
+                    new File(nativeLibraryBuildRoot, safeProjectName)
+                )
+                androidExtension.defaultConfig.externalNativeBuild.cmake.arguments(
+                    "-DCMAKE_OBJECT_PATH_MAX=240"
+                )
+            }
+        }
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject"

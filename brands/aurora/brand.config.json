@@ -1,0 +1,114 @@
+{
+  "id": "aurora",
+  "appName": "Aurora Invest",
+  "logo": "assets/brands/aurora/logo.png",
+  "defaultLocale": "zh-CN",
+  "supportedLocales": ["zh-CN", "en-US"],
+  "theme": {
+    "colors": {
+      "primary": "#5B5CE2",
+      "primaryPressed": "#4546B8",
+      "background": "#0B1020",
+      "surface": "#151C31",
+      "text": "#F7F8FC",
+      "textMuted": "#A8B0C4",
+      "success": "#32D49B",
+      "warning": "#F6B84A",
+      "danger": "#FF6B78",
+      "border": "#27304B"
+    },
+    "radius": { "sm": 8, "md": 14, "lg": 22 },
+    "spacing": { "xs": 4, "sm": 8, "md": 16, "lg": 24, "xl": 32 },
+    "typography": { "titleSize": 30, "bodySize": 16 }
+  },
+  "copy": {
+    "zh-CN": {
+      "app.home": "首页",
+      "app.quickActions": "快捷入口",
+      "app.disclosure": "投资有风险，入市需谨慎。",
+      "app.environment": "开发环境"
+    },
+    "en-US": {
+      "app.home": "Home",
+      "app.quickActions": "Quick actions",
+      "app.disclosure": "Investing involves risk. Capital is at risk.",
+      "app.environment": "Development"
+    }
+  },
+  "features": {
+    "accountOpening": true,
+    "markets": true,
+    "trading": true,
+    "portfolio": true,
+    "news": true,
+    "advancedOrders": true,
+    "qrLogin": true
+  },
+  "environments": {
+    "development": {
+      "apiBaseUrl": "https://dev-api.aurora.example",
+      "marketDataUrl": "wss://dev-feed.aurora.example",
+      "timeoutMs": 15000
+    },
+    "staging": {
+      "apiBaseUrl": "https://staging-api.aurora.example",
+      "marketDataUrl": "wss://staging-feed.aurora.example",
+      "timeoutMs": 12000
+    },
+    "production": {
+      "apiBaseUrl": "https://api.aurora.example",
+      "marketDataUrl": "wss://feed.aurora.example",
+      "timeoutMs": 10000
+    }
+  },
+  "compliance": {
+    "jurisdiction": "HK",
+    "riskDisclosureKey": "app.disclosure",
+    "privacyUrl": "https://aurora.example/privacy",
+    "termsUrl": "https://aurora.example/terms"
+  },
+  "native": {
+    "ios": {
+      "bundleId": "com.example.aurora",
+      "teamId": "YOUR_TEAM_ID",
+      "appStoreId": "0000000000"
+    },
+    "android": {
+      "applicationId": "com.example.aurora",
+      "playStorePackage": "com.example.aurora"
+    },
+    "deepLinks": { "scheme": "aurora", "hosts": ["invest.aurora.example"] },
+    "push": { "provider": "firebase", "environment": "development" },
+    "sdkKeys": {
+      "analytics": "${ANALYTICS_KEY}",
+      "marketData": "${MARKET_DATA_KEY}"
+    },
+    "channel": { "id": "direct", "campaign": "organic" },
+    "permissions": {
+      "cameraUsage": "用于扫描网页登录二维码；相机画面不会被保存或上传。"
+    }
+  },
+  "assembly": {
+    "modules": [
+      "auth",
+      "qr-login",
+      "onboarding",
+      "markets",
+      "trading",
+      "portfolio",
+      "news",
+      "advanced-orders"
+    ],
+    "menu": ["menu.markets", "menu.trading", "menu.portfolio", "menu.news"],
+    "home": [
+      "home.qrLogin",
+      "home.markets",
+      "home.portfolio",
+      "home.news",
+      "home.onboarding",
+      "home.advancedOrders"
+    ],
+    "initialRoute": "Home"
+  },
+  "strategies": { "kyc": "enhanced", "tradingApi": "broker-adapter" }
+}
