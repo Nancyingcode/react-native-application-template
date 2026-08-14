@@ -1,10 +1,8 @@
-'use strict';
-
-const {listBrands, readBrand, validateBrand} = require('./brand-utils');
+import { listBrands, readBrand, validateBrand } from './brand-utils';
 
 let failed = false;
 for (const id of listBrands()) {
-  const {config} = readBrand(id);
+  const { config } = readBrand(id);
   const errors = validateBrand(config);
   if (errors.length) {
     failed = true;

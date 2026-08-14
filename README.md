@@ -99,7 +99,7 @@ Debug 包的扫码页提供“开发环境：模拟扫码”，可在没有测�
 4. 执行 `npm run brand:generate -- <id>`，检查 `generated/native/brand-manifest.json`。
 5. 在 CI 注入签名和第三方 SDK 密钥，再构建商店包。
 
-新增领域模块时实现 `AppModuleFactory`，并把模块的构建期映射加入 `scripts/brand-utils.js`。独立插件也遵守同一注册协议，但目录放在 `src/plugins`，公共模块不得反向依赖它。
+新增领域模块时实现 `AppModuleFactory`，并把模块的构建期映射加入 `scripts/brand-utils.ts`。独立插件也遵守同一注册协议，但目录放在 `src/plugins`，公共模块不得反向依赖它。
 
 ## 原生与密钥
 

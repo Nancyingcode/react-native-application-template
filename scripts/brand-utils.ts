@@ -1,10 +1,15 @@
-'use strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import type { BrandConfig } from '../src/brand/types';
 
-const fs = require('fs');
-const path = require('path');
+export interface ModuleDefinition {
+  symbol: string;
+  importPath: string;
+}
 
-const ROOT = path.resolve(__dirname, '..');
-const MODULES = {
+export const ROOT = path.resolve(__dirname, '..');
+
+export const MODULES: Record<string, ModuleDefinition> = {
   auth: { symbol: 'authModule', importPath: '../../modules/auth' },
   onboarding: {
     symbol: 'onboardingModule',
@@ -24,26 +29,29 @@ const MODULES = {
   },
 };
 
-function listBrands() {
+export function listBrands(): string[] {
   return fs
     .readdirSync(path.join(ROOT, 'brands'), { withFileTypes: true })
     .filter(entry => entry.isDirectory())
     .map(entry => entry.name);
 }
 
-function readBrand(id) {
+export function readBrand(id: string): { file: string; config: BrandConfig } {
   const file = path.join(ROOT, 'brands', id, 'brand.config.json');
   if (!fs.existsSync(file)) {
     throw new Error(
       `Unknown brand "${id}". Available: ${listBrands().join(', ')}`,
     );
   }
-  return { file, config: JSON.parse(fs.readFileSync(file, 'utf8')) };
+  return {
+    file,
+    config: JSON.parse(fs.readFileSync(file, 'utf8')) as BrandConfig,
+  };
 }
 
-function validateBrand(brand) {
-  const errors = [];
-  const requiredStrings = ['id', 'appName', 'logo', 'defaultLocale'];
+export function validateBrand(brand: BrandConfig): string[] {
+  const errors: string[] = [];
+  const requiredStrings = ['id', 'appName', 'logo', 'defaultLocale'] as const;
   for (const field of requiredStrings) {
     if (typeof brand[field] !== 'string' || !brand[field]) {
       errors.push(`${field} must be a non-empty string`);
@@ -52,7 +60,7 @@ function validateBrand(brand) {
   if (!brand.theme?.colors?.primary || !brand.theme?.colors?.background) {
     errors.push('theme colors are incomplete');
   }
-  for (const environment of ['development', 'staging', 'production']) {
+  for (const environment of ['development', 'staging', 'production'] as const) {
     if (!brand.environments?.[environment]?.apiBaseUrl) {
       errors.push(`environments.${environment}.apiBaseUrl is required`);
     }
@@ -101,7 +109,7 @@ function validateBrand(brand) {
   return errors;
 }
 
-function escapeXml(value) {
+export function escapeXml(value: unknown): string {
   return String(value)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -109,12 +117,3 @@ function escapeXml(value) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&apos;');
 }
-
-module.exports = {
-  ROOT,
-  MODULES,
-  listBrands,
-  readBrand,
-  validateBrand,
-  escapeXml,
-};

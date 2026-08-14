@@ -1,38 +1,37 @@
-'use strict';
-
-const fs = require('fs');
-const http = require('http');
-const net = require('net');
-const os = require('os');
-const path = require('path');
-const {spawnSync} = require('child_process');
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import http from 'node:http';
+import net from 'node:net';
+import os from 'node:os';
+import path from 'node:path';
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_PORT = 8081;
 
-function findAndroidSdk() {
+function executable(name: string): string {
+  return process.platform === 'win32' ? `${name}.exe` : name;
+}
+
+function findAndroidSdk(): string | undefined {
   const candidates = [
     process.env.ANDROID_HOME,
     process.env.ANDROID_SDK_ROOT,
-    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Android', 'Sdk'),
+    process.env.LOCALAPPDATA &&
+      path.join(process.env.LOCALAPPDATA, 'Android', 'Sdk'),
     process.env.HOME && path.join(process.env.HOME, 'Android', 'Sdk'),
     path.join(os.homedir(), 'AppData', 'Local', 'Android', 'Sdk'),
-  ].filter(Boolean);
+  ].filter((candidate): candidate is string => Boolean(candidate));
 
   return candidates.find(candidate =>
     fs.existsSync(path.join(candidate, 'platform-tools', executable('adb'))),
   );
 }
 
-function executable(name) {
-  return process.platform === 'win32' ? `${name}.exe` : name;
-}
-
-function pathEntries(sdk) {
+function pathEntries(sdk: string): string[] {
   return [path.join(sdk, 'platform-tools'), path.join(sdk, 'emulator')];
 }
 
-function readProperties(file) {
+function readProperties(file: string): Record<string, string> {
   if (!fs.existsSync(file)) {
     return {};
   }
@@ -44,19 +43,24 @@ function readProperties(file) {
       .filter(line => line && !line.startsWith('#') && line.includes('='))
       .map(line => {
         const separator = line.indexOf('=');
-        return [line.slice(0, separator).trim(), line.slice(separator + 1).trim()];
+        return [
+          line.slice(0, separator).trim(),
+          line.slice(separator + 1).trim(),
+        ];
       }),
   );
 }
 
-function hasOption(args, option) {
-  return args.some(argument => argument === option || argument.startsWith(`${option}=`));
+function hasOption(args: string[], option: string): boolean {
+  return args.some(
+    argument => argument === option || argument.startsWith(`${option}=`),
+  );
 }
 
-function isPortOpen(port) {
+function isPortOpen(port: number): Promise<boolean> {
   return new Promise(resolve => {
-    const socket = net.createConnection({host: '127.0.0.1', port});
-    const finish = value => {
+    const socket = net.createConnection({ host: '127.0.0.1', port });
+    const finish = (value: boolean) => {
       socket.destroy();
       resolve(value);
     };
@@ -67,17 +71,19 @@ function isPortOpen(port) {
   });
 }
 
-function isMetro(port) {
+function isMetro(port: number): Promise<boolean> {
   return new Promise(resolve => {
     const request = http.get(
-      {host: '127.0.0.1', port, path: '/status', timeout: 800},
+      { host: '127.0.0.1', port, path: '/status', timeout: 800 },
       response => {
         let body = '';
         response.setEncoding('utf8');
         response.on('data', chunk => {
           body += chunk;
         });
-        response.on('end', () => resolve(body.trim() === 'packager-status:running'));
+        response.on('end', () =>
+          resolve(body.trim() === 'packager-status:running'),
+        );
       },
     );
     request.once('timeout', () => {
@@ -88,7 +94,7 @@ function isMetro(port) {
   });
 }
 
-async function main() {
+async function main(): Promise<void> {
   const sdk = findAndroidSdk();
   if (!sdk) {
     console.error(
@@ -98,11 +104,13 @@ async function main() {
     return;
   }
 
-  const env = {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     ANDROID_HOME: sdk,
     ANDROID_SDK_ROOT: sdk,
-    PATH: `${pathEntries(sdk).join(path.delimiter)}${path.delimiter}${process.env.PATH || ''}`,
+    PATH: `${pathEntries(sdk).join(path.delimiter)}${path.delimiter}${
+      process.env.PATH || ''
+    }`,
   };
   const forwarded = process.argv.slice(2);
   const nativeProperties = readProperties(
@@ -132,12 +140,16 @@ async function main() {
 
   console.log(`Android SDK: ${sdk}`);
   const cli = path.join(ROOT, 'node_modules', 'react-native', 'cli.js');
-  const result = spawnSync(process.execPath, [cli, 'run-android', ...forwarded], {
-    cwd: ROOT,
-    env,
-    stdio: 'inherit',
-    windowsHide: false,
-  });
+  const result = spawnSync(
+    process.execPath,
+    [cli, 'run-android', ...forwarded],
+    {
+      cwd: ROOT,
+      env,
+      stdio: 'inherit',
+      windowsHide: false,
+    },
+  );
 
   if (result.error) {
     console.error(result.error.message);
@@ -147,7 +159,7 @@ async function main() {
   process.exitCode = result.status ?? 1;
 }
 
-main().catch(error => {
-  console.error(error);
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
 });

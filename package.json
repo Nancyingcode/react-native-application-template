@@ -3,14 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "android": "npm run brand:generate && node scripts/run-android.js",
+    "android": "npm run brand:generate && tsx scripts/run-android.ts",
     "ios": "npm run brand:generate && react-native run-ios",
-    "brand:generate": "node scripts/generate-brand.js",
-    "brand:validate": "node scripts/validate-brands.js",
+    "brand:generate": "tsx scripts/generate-brand.ts",
+    "brand:validate": "tsx scripts/validate-brands.ts",
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest --runInBand",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json"
   },
   "dependencies": {
     "react": "19.2.3",
@@ -34,12 +34,14 @@
     "@react-native/metro-config": "0.86.0",
     "@react-native/typescript-config": "0.86.0",
     "@types/jest": "^29.5.13",
+    "@types/node": "^22.10.0",
     "@types/react": "^19.2.0",
     "@types/react-test-renderer": "^19.1.0",
     "eslint": "^8.19.0",
     "jest": "^29.6.3",
     "prettier": "2.8.8",
     "react-test-renderer": "19.2.3",
+    "tsx": "^4.23.12",
     "typescript": "^5.8.3"
   },
   "engines": {
