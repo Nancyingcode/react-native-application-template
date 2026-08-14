@@ -72,7 +72,7 @@ def releaseSigningReady = brandKeystore && brandKeyAlias &&
 def cxxBuildDir = System.getenv("RN_CXX_BUILD_DIR")
 if (!cxxBuildDir && System.getProperty("os.name").toLowerCase().contains("windows")) {
     def projectHash = Integer.toHexString(rootProject.projectDir.absolutePath.hashCode())
-    cxxBuildDir = new File(System.getProperty("user.home"), ".rn-cxx/${rootProject.name}-${projectHash}")
+    cxxBuildDir = new File(System.getProperty("user.home"), ".rn-cxx/${projectHash}")
 }
 
 /**

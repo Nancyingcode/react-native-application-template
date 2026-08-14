@@ -74,7 +74,7 @@ function isPortOpen(port: number): Promise<boolean> {
 function isMetro(port: number): Promise<boolean> {
   return new Promise(resolve => {
     const request = http.get(
-      { host: '127.0.0.1', port, path: '/status', timeout: 800 },
+      { host: '127.0.0.1', port, path: '/status', timeout: 3000 },
       response => {
         let body = '';
         response.setEncoding('utf8');

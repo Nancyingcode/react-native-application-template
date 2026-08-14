@@ -26,8 +26,8 @@ if (System.getProperty("os.name").toLowerCase().contains("windows")) {
     def configuredCxxRoot = System.getenv("RN_CXX_BUILD_DIR")
     def nativeBuildRoot = configuredCxxRoot
         ? rootProject.file(configuredCxxRoot)
-        : new File(System.getProperty("user.home"), ".rn-cxx/${rootProject.name}-${projectHash}")
-    def nativeLibraryBuildRoot = new File(nativeBuildRoot, "libraries")
+        : new File(System.getProperty("user.home"), ".rn-cxx/${projectHash}")
+    def nativeLibraryBuildRoot = new File(nativeBuildRoot, "l")
     def nativeCmakeLibraries = [
         "react-native-nitro-image",
         "react-native-nitro-modules",
@@ -39,12 +39,12 @@ if (System.getProperty("os.name").toLowerCase().contains("windows")) {
         subproject.plugins.withId("com.android.library") {
             if (nativeCmakeLibraries.contains(subproject.name)) {
                 def androidExtension = subproject.extensions.findByName("android")
-                def safeProjectName = subproject.name.replaceAll("[^A-Za-z0-9_.-]", "_")
+                def safeProjectName = Integer.toHexString(subproject.name.hashCode())
                 androidExtension.externalNativeBuild.cmake.buildStagingDirectory(
                     new File(nativeLibraryBuildRoot, safeProjectName)
                 )
                 androidExtension.defaultConfig.externalNativeBuild.cmake.arguments(
-                    "-DCMAKE_OBJECT_PATH_MAX=240"
+                    "-DCMAKE_OBJECT_PATH_MAX=200"
                 )
             }
         }

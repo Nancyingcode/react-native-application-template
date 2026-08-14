@@ -1,0 +1,4 @@
+#pragma once
+
+#include "@LIB_ANDROID_GENERATED_COMPONENTS_DIR@/ComponentDescriptors.h"
+#include "@LIB_COMMON_COMPONENTS_DIR@/RNCSafeAreaViewComponentDescriptor.h"
