@@ -23,7 +23,7 @@ npm start
 npm run android
 ```
 
-`npm run android` 会自动发现 Android SDK；若 8081 已有 Metro，则直接复用，避免端口选择提示。Gradle 首次下载允许 120 秒连接时间。若 SDK 位于非标准目录，请设置 `ANDROID_HOME`。
+`npm run android` 会自动发现 Android SDK，并且 Debug 构建默认只编译当前设备 ABI，减少 CMake/NDK 缓存体积。需要一次构建全部 ABI 时使用 `npm run android:all-archs`。若 8081 已有 Metro，则直接复用，避免端口选择提示。Gradle 首次下载允许 120 秒连接时间。若 SDK 位于非标准目录，请设置 `ANDROID_HOME`。
 
 Android 的 CMake 配置会对超长对象路径进行哈希，并在 Windows 将原生临时文件放进用户目录下的短路径，支持较深的仓库目录，无需关闭 React Native New Architecture 或修改系统注册表。可通过 `RN_CXX_BUILD_DIR` 覆盖临时目录。
 
@@ -90,6 +90,10 @@ POST /v1/auth/qr-login/reject   { challengeId }
 `resolve` 返回的 challenge 必须与扫描值一致，且剩余有效期不能超过 5 分钟；确认与拒绝应由服务端保证用户绑定、一次性和幂等。所有三个接口都要求 Bearer Token，无有效 Session 时 HTTP 底座会在发送请求前拒绝。当前示例登录页仍是 UI 占位，接入真实登录接口后应通过 `services.session.setSession(...)` 建立会话。
 
 Debug 包的扫码页提供“开发环境：模拟扫码”，可在没有测试二维码时检查确认页。iOS 扫码依赖要求 deployment target 15.5 且需真机验证；Android 模拟器可在 Camera 的 Virtual Scene 中导入二维码图片。
+
+## 埋点
+
+底座提供同意门控、自动生命周期/页面/HTTP/错误/性能采集、用户关联、自定义事件、批量上报和失败重试。事件协议、接入示例及服务端格式见 [`docs/analytics.md`](docs/analytics.md)。
 
 ## 新增品牌
 

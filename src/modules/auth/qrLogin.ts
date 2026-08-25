@@ -134,11 +134,16 @@ export function validateResolvedChallenge(
   const location = cleanLabel(payload.location);
   const expiresAt = timestampValue(payload.expiresAt);
 
+  const matchesRequestedChallenge = challengeId === expectedChallengeId;
+  const hasValidChallengeId =
+    challengeId !== undefined && CHALLENGE_PATTERN.test(challengeId);
+  const hasRequiredDetails =
+    deviceName !== undefined && expiresAt !== undefined;
+
   if (
-    challengeId !== expectedChallengeId ||
-    !CHALLENGE_PATTERN.test(challengeId) ||
-    !deviceName ||
-    expiresAt === undefined
+    !matchesRequestedChallenge ||
+    !hasValidChallengeId ||
+    !hasRequiredDetails
   ) {
     throw new QrLoginParseError('invalid-challenge');
   }

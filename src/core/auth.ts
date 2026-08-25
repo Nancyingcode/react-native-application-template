@@ -12,6 +12,10 @@ export interface SessionStore {
   clear(): Promise<void>;
 }
 
+export interface SessionObserver {
+  onSessionChanged(session: AuthSession | null): void;
+}
+
 export class InMemorySessionStore implements SessionStore {
   private session: AuthSession | null = null;
   async read(): Promise<AuthSession | null> {
@@ -26,7 +30,10 @@ export class InMemorySessionStore implements SessionStore {
 }
 
 export class SessionManager {
-  constructor(private readonly store: SessionStore) {}
+  constructor(
+    private readonly store: SessionStore,
+    private readonly observer?: SessionObserver,
+  ) {}
 
   getSession(): Promise<AuthSession | null> {
     return this.store.read();
@@ -37,11 +44,13 @@ export class SessionManager {
     return session && session.expiresAt > Date.now() ? session.accessToken : undefined;
   }
 
-  setSession(session: AuthSession): Promise<void> {
-    return this.store.write(session);
+  async setSession(session: AuthSession): Promise<void> {
+    await this.store.write(session);
+    this.observer?.onSessionChanged(session);
   }
 
-  signOut(): Promise<void> {
-    return this.store.clear();
+  async signOut(): Promise<void> {
+    await this.store.clear();
+    this.observer?.onSessionChanged(null);
   }
 }

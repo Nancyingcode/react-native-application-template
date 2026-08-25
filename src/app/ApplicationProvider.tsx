@@ -5,6 +5,7 @@ import {createCoreServices, type CoreServices} from '../core/services';
 import {ModuleRegistry} from '../modules/ModuleRegistry';
 import type {RegisteredModule} from '../modules/contracts';
 import {assembleApplication, type AssembledApplication} from './assembleApplication';
+import {useAnalyticsLifecycle} from './useAnalyticsLifecycle';
 
 interface ApplicationContextValue {
   brand: BrandConfig;
@@ -18,35 +19,46 @@ const ApplicationContext = createContext<ApplicationContextValue | null>(null);
 
 export function ApplicationProvider({children}: React.PropsWithChildren): React.JSX.Element {
   const [serverFlags, setServerFlags] = useState<Record<string, FeatureValue>>({});
-  const value = useMemo(() => {
-    const services = createCoreServices(activeBrand);
-    const registry = new ModuleRegistry();
+  const services = useMemo(() => createCoreServices(activeBrand), []);
+  const registry = useMemo(() => {
+    const moduleRegistry = new ModuleRegistry();
     for (const factory of activeModuleFactories) {
-      registry.register(factory.create({brand: activeBrand, services}));
+      moduleRegistry.register(factory.create({brand: activeBrand, services}));
     }
-    for (const module of registry.all()) {
+    for (const module of moduleRegistry.all()) {
       for (const [locale, messages] of Object.entries(module.translations ?? {})) {
         services.i18n.add(locale, messages);
       }
     }
+    return moduleRegistry;
+  }, [services]);
+  const application = useMemo(() => {
     const permissions = new Set(['portfolio:read', 'trade:write', 'trade:advanced']);
-    const application = assembleApplication(activeBrand, registry.all(), {
+    return assembleApplication(activeBrand, registry.all(), {
       serverFlags,
       permissions,
       authenticated: true,
     });
-    return {brand: activeBrand, services, modules: registry.all(), application, registry};
-  }, [serverFlags]);
+  }, [registry, serverFlags]);
+
+  useAnalyticsLifecycle(services.analytics);
 
   useEffect(() => {
-    value.registry.initialize().catch(error => value.services.monitor.capture(error));
+    registry.initialize().catch(error => services.monitor.capture(error));
     return () => {
-      value.registry.dispose().catch(error => value.services.monitor.capture(error));
+      registry.dispose().catch(error => services.monitor.capture(error));
     };
-  }, [value]);
+  }, [registry, services]);
 
   return (
-    <ApplicationContext.Provider value={{...value, setServerFlags}}>
+    <ApplicationContext.Provider
+      value={{
+        brand: activeBrand,
+        services,
+        modules: registry.all(),
+        application,
+        setServerFlags,
+      }}>
       {children}
     </ApplicationContext.Provider>
   );

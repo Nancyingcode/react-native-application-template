@@ -46,6 +46,7 @@ AND 用户拥有全部权限
 
 - `InMemorySessionStore` → Keychain/Android Keystore 支持的安全存储；
 - `MemoryCache` → 带加密和版本迁移的持久缓存；
-- `ConsoleLogger`/本地埋点/监控 → 企业采集 SDK，并保持脱敏；
+- `ConsoleLogger`/`HttpAnalyticsTransport`/`AppMonitor` → 企业采集 SDK 或自有网关，并保持事件协议与脱敏；
+- 埋点内存队列 → 需要跨进程离线可靠性时替换为带加密、容量限制和版本迁移的持久队列；
 - 默认运行期权限 → 登录接口返回的 entitlement；
 - 示例页面 → 各领域容器、状态管理和 API repository。

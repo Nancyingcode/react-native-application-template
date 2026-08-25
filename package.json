@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "android": "npm run brand:generate && tsx scripts/run-android.ts",
+    "android": "npm run brand:generate && tsx scripts/run-android.ts --active-arch-only",
+    "android:all-archs": "npm run brand:generate && tsx scripts/run-android.ts",
     "ios": "npm run brand:generate && react-native run-ios",
     "brand:generate": "tsx scripts/generate-brand.ts",
     "brand:validate": "tsx scripts/validate-brands.ts",

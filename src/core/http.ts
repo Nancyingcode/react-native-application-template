@@ -35,6 +35,18 @@ export interface HttpClientConfig {
   cache: CacheStore;
   logger: Logger;
   fetcher?: typeof fetch;
+  onRequestCompleted?(metric: HttpRequestMetric): void;
+}
+
+export interface HttpRequestMetric {
+  path: string;
+  method: string;
+  status?: number;
+  durationMs: number;
+  success: boolean;
+  source: 'network' | 'cache' | 'client';
+  attempts: number;
+  errorCode?: string;
 }
 
 export class HttpClient {
@@ -45,9 +57,21 @@ export class HttpClient {
   }
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    const startedAt = Date.now();
+    // 查询参数经常包含搜索词或短时凭证，指标只保留稳定且低敏感的路由路径。
+    const metricPath = path.split('?')[0];
+    const method = options.method?.toUpperCase() ?? 'GET';
     if (options.cache) {
       const cached = await this.config.cache.get<T>(options.cache.key);
       if (cached !== undefined) {
+        this.recordMetric({
+          path: metricPath,
+          method,
+          durationMs: Date.now() - startedAt,
+          success: true,
+          source: 'cache',
+          attempts: 0,
+        });
         return cached;
       }
     }
@@ -59,6 +83,15 @@ export class HttpClient {
     if (options.authenticated !== false) {
       const token = await this.config.session.getAccessToken();
       if (!token) {
+        this.recordMetric({
+          path: metricPath,
+          method,
+          durationMs: Date.now() - startedAt,
+          success: false,
+          source: 'client',
+          attempts: 0,
+          errorCode: 'AUTHENTICATION_REQUIRED',
+        });
         throw new AuthenticationRequiredError();
       }
       headers.set('Authorization', `Bearer ${token}`);
@@ -103,6 +136,15 @@ export class HttpClient {
             options.cache.ttlMs,
           );
         }
+        this.recordMetric({
+          path: metricPath,
+          method,
+          status: response.status,
+          durationMs: Date.now() - startedAt,
+          success: true,
+          source: 'network',
+          attempts: attempt,
+        });
         return data;
       } catch (error) {
         lastError = error;
@@ -113,6 +155,21 @@ export class HttpClient {
             attempt,
             error,
           });
+          this.recordMetric({
+            path: metricPath,
+            method,
+            status: error instanceof ApiError ? error.status : undefined,
+            durationMs: Date.now() - startedAt,
+            success: false,
+            source: 'network',
+            attempts: attempt,
+            errorCode:
+              error instanceof ApiError
+                ? error.code
+                : error instanceof Error
+                  ? error.name
+                  : 'UNKNOWN_ERROR',
+          });
           throw error;
         }
       } finally {
@@ -120,6 +177,14 @@ export class HttpClient {
       }
     }
     throw lastError;
+  }
+
+  private recordMetric(metric: HttpRequestMetric): void {
+    try {
+      this.config.onRequestCompleted?.(metric);
+    } catch (error) {
+      this.config.logger.log('warn', 'HTTP metric observer failed', {error});
+    }
   }
 }
 

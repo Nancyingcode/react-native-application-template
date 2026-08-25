@@ -45,6 +45,24 @@ type ScreenMode =
 
 const QR_BARCODE_FORMATS: TargetBarcodeFormat[] = ['qr-code'];
 
+function getRejectedScanDetails(error: unknown): {
+  messageKey: string;
+  reason: string;
+} {
+  if (!(error instanceof QrLoginParseError)) {
+    return {
+      messageKey: 'auth.qr.error.network',
+      reason: 'unknown',
+    };
+  }
+
+  const messageKey =
+    error.code === 'expired'
+      ? 'auth.qr.error.expired'
+      : 'auth.qr.error.invalid';
+  return { messageKey, reason: error.code };
+}
+
 export function QrLoginScreen(): React.JSX.Element {
   const { brand, services } = useApplication();
   const navigate = useAppNavigation();
@@ -92,15 +110,10 @@ export function QrLoginScreen(): React.JSX.Element {
           return;
         }
         lastRejectedAtRef.current = now;
-        const key =
-          error instanceof QrLoginParseError
-            ? error.code === 'expired'
-              ? 'auth.qr.error.expired'
-              : 'auth.qr.error.invalid'
-            : 'auth.qr.error.network';
-        setMessageKey(key);
+        const rejectedScan = getRejectedScanDetails(error);
+        setMessageKey(rejectedScan.messageKey);
         services.analytics.track('qr_login_rejected', {
-          reason: error instanceof QrLoginParseError ? error.code : 'unknown',
+          reason: rejectedScan.reason,
         });
       }
     },
@@ -249,17 +262,20 @@ export function QrLoginScreen(): React.JSX.Element {
     );
   }
 
-  if (
-    (mode === 'reviewing' || mode === 'submitting' || mode === 'rejecting') &&
-    challenge
-  ) {
+  const isReviewing = mode === 'reviewing';
+  const isSubmitting = mode === 'submitting';
+  const isRejecting = mode === 'rejecting';
+  const shouldShowReview =
+    challenge !== undefined && (isReviewing || isSubmitting || isRejecting);
+
+  if (shouldShowReview) {
     return (
       <ReviewState
         challenge={challenge}
         message={messageKey ? services.i18n.t(messageKey) : undefined}
         secondsRemaining={secondsRemaining}
-        submitting={mode === 'submitting'}
-        rejecting={mode === 'rejecting'}
+        submitting={isSubmitting}
+        rejecting={isRejecting}
         onConfirm={confirmLogin}
         onCancel={rejectLogin}
         styles={styles}
@@ -269,6 +285,10 @@ export function QrLoginScreen(): React.JSX.Element {
   }
 
   const cameraActive = appState === 'active' && mode === 'scanning';
+  let torchMode: 'on' | 'off' | undefined;
+  if (cameraStarted) {
+    torchMode = torchEnabled ? 'on' : 'off';
+  }
   return (
     <View style={styles.scannerRoot}>
       <Camera
@@ -276,7 +296,7 @@ export function QrLoginScreen(): React.JSX.Element {
         device={device}
         isActive={cameraActive}
         outputs={cameraOutputs}
-        torchMode={cameraStarted ? (torchEnabled ? 'on' : 'off') : undefined}
+        torchMode={torchMode}
         onStarted={() => setCameraStarted(true)}
         onStopped={() => setCameraStarted(false)}
         onError={handleScannerError}

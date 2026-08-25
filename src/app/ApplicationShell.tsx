@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApplication } from './ApplicationProvider';
@@ -15,9 +15,14 @@ export function ApplicationShell(): React.JSX.Element {
   );
   const Screen = route?.component;
 
+  useEffect(() => {
+    services.analytics.screen(routeName, {
+      titleKey: route?.titleKey,
+    });
+  }, [route?.titleKey, routeName, services.analytics]);
+
   const navigate = (next: string): void => {
     setRouteName(next);
-    services.analytics.track('navigation', { route: next });
   };
 
   return (

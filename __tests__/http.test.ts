@@ -6,6 +6,7 @@ import { ConsoleLogger } from '../src/core/logger';
 describe('HttpClient authentication', () => {
   it('does not send an authenticated request without a valid session', async () => {
     const fetcher = jest.fn();
+    const onRequestCompleted = jest.fn();
     const client = new HttpClient({
       baseUrl: 'https://api.example.test',
       timeoutMs: 1000,
@@ -13,11 +14,20 @@ describe('HttpClient authentication', () => {
       cache: new MemoryCache(),
       logger: new ConsoleLogger({ scope: 'test' }),
       fetcher,
+      onRequestCompleted,
     });
 
     await expect(
       client.request('/private', { authenticated: true }),
     ).rejects.toBeInstanceOf(AuthenticationRequiredError);
     expect(fetcher).not.toHaveBeenCalled();
+    expect(onRequestCompleted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: '/private',
+        success: false,
+        source: 'client',
+        errorCode: 'AUTHENTICATION_REQUIRED',
+      }),
+    );
   });
 });
