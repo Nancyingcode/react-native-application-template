@@ -1,5 +1,8 @@
 # 埋点服务
 
+后台采集接口、事件分类、字段表和联调验收标准见
+[`analytics-backend-contract.md`](analytics-backend-contract.md)。
+
 埋点底座位于 `src/core/telemetry.ts`，默认通过
 `POST {apiBaseUrl}/v1/analytics/events` 批量上报。服务不依赖第三方 SDK；如需接入
 Segment、Amplitude、神策等平台，只需实现 `AnalyticsTransport`，业务调用无需调整。
