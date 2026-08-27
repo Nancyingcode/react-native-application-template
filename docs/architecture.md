@@ -21,6 +21,7 @@ if (brand.id === 'some-brand') {
 - `routes`：页面和鉴权/功能要求；
 - `menus`：菜单候选项；
 - `home`：首页候选卡片；
+- `login`：登录页候选登录方式；
 - `translations`：领域文案；
 - `initialize/dispose`：成对生命周期。
 

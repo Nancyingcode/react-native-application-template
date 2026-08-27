@@ -7,6 +7,12 @@ export interface AssembledApplication {
   routes: RouteContribution[];
   menu: Array<{ id: string; labelKey: string; route: string }>;
   home: Array<{ id: string; titleKey: string; route: string }>;
+  login: Array<{
+    id: string;
+    titleKey: string;
+    descriptionKey?: string;
+    route: string;
+  }>;
   initialRoute: string;
 }
 
@@ -54,6 +60,23 @@ export function assembleApplication(
     )
     .map(({ id, titleKey, route }) => ({ id, titleKey, route }));
 
+  const loginOrder = brand.assembly.login ?? [];
+  const login = selected
+    .flatMap(module => module.login ?? [])
+    .filter(item => isContributionVisible(brand.features, runtime, item))
+    .filter(item => loginOrder.includes(item.id) && assertRoute(item.route))
+    .sort(
+      (a, b) =>
+        loginOrder.indexOf(a.id) - loginOrder.indexOf(b.id) ||
+        a.order - b.order,
+    )
+    .map(({ id, titleKey, descriptionKey, route }) => ({
+      id,
+      titleKey,
+      ...(descriptionKey ? { descriptionKey } : {}),
+      route,
+    }));
+
   let initialRoute: string | undefined;
   const shouldStartAtHome = brand.assembly.initialRoute === 'Home';
   const canStartAtConfiguredRoute = assertRoute(brand.assembly.initialRoute);
@@ -69,5 +92,5 @@ export function assembleApplication(
     throw new Error(`Brand "${brand.id}" assembled no visible routes`);
   }
 
-  return { routes, menu: menus, home, initialRoute };
+  return { routes, menu: menus, home, login, initialRoute };
 }

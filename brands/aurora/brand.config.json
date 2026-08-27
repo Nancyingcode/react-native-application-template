@@ -26,13 +26,23 @@
       "app.home": "首页",
       "app.quickActions": "快捷入口",
       "app.disclosure": "投资有风险，入市需谨慎。",
-      "app.environment": "开发环境"
+      "app.environment": "开发环境",
+      "auth.login.eyebrow": "安全访问",
+      "auth.login.title": "欢迎回来",
+      "auth.login.description": "登录账户、刷新凭据或通过其他安全方式访问。",
+      "auth.login.primaryAction": "安全登录",
+      "auth.login.options": "其他登录方式"
     },
     "en-US": {
       "app.home": "Home",
       "app.quickActions": "Quick actions",
       "app.disclosure": "Investing involves risk. Capital is at risk.",
-      "app.environment": "Development"
+      "app.environment": "Development",
+      "auth.login.eyebrow": "SECURE ACCESS",
+      "auth.login.title": "Welcome back",
+      "auth.login.description": "Sign in, refresh credentials or use another secure access method.",
+      "auth.login.primaryAction": "Continue securely",
+      "auth.login.options": "Other sign-in methods"
     }
   },
   "features": {
@@ -102,6 +112,7 @@
       "advanced-orders"
     ],
     "menu": [
+      "menu.login",
       "menu.markets",
       "menu.trading",
       "menu.portfolio",
@@ -110,13 +121,17 @@
       "menu.commerceCart"
     ],
     "home": [
-      "home.qrLogin",
       "home.markets",
       "home.portfolio",
       "home.news",
       "home.onboarding",
       "home.commerce",
       "home.advancedOrders"
+    ],
+    "login": [
+      "login.accountPassword",
+      "login.phone",
+      "login.qrLogin"
     ],
     "initialRoute": "Home"
   },

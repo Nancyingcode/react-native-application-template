@@ -76,6 +76,7 @@ export interface BrandConfig {
     modules: ModuleId[];
     menu: string[];
     home: string[];
+    login?: string[];
     initialRoute: string;
   };
   strategies: {

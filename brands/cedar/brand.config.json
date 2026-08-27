@@ -26,7 +26,12 @@
       "app.home": "Overview",
       "app.quickActions": "Explore",
       "app.disclosure": "Market information is delayed and is not investment advice.",
-      "app.environment": "Development"
+      "app.environment": "Development",
+      "auth.login.eyebrow": "SECURE ACCESS",
+      "auth.login.title": "Welcome back",
+      "auth.login.description": "Sign in, refresh credentials or use another secure access method.",
+      "auth.login.primaryAction": "Continue securely",
+      "auth.login.options": "Other sign-in methods"
     }
   },
   "features": {
@@ -79,8 +84,9 @@
   },
   "assembly": {
     "modules": ["auth", "onboarding", "markets", "news"],
-    "menu": ["menu.markets", "menu.news", "menu.onboarding"],
+    "menu": ["menu.login", "menu.markets", "menu.news", "menu.onboarding"],
     "home": ["home.markets", "home.news", "home.onboarding"],
+    "login": ["login.accountPassword", "login.phone"],
     "initialRoute": "Home"
   },
   "strategies": { "kyc": "standard", "tradingApi": "rest" }

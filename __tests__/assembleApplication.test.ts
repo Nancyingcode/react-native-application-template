@@ -9,6 +9,7 @@ const brand = {
     modules: ['markets', 'trading'],
     menu: ['menu.trading', 'menu.markets'],
     home: ['home.markets'],
+    login: [],
     initialRoute: 'Home',
   },
 } as unknown as BrandConfig;
@@ -61,6 +62,109 @@ describe('assembleApplication', () => {
     expect(result.routes.map(route => route.name)).toEqual(['Markets']);
     expect(result.menu.map(item => item.id)).toEqual(['menu.markets']);
     expect(result.home.map(item => item.id)).toEqual(['home.markets']);
+    expect(result.login).toEqual([]);
+  });
+
+  it('assembles configured login options without exposing them on home', () => {
+    const qrLoginModule: RegisteredModule = {
+      id: 'qr-login',
+      version: '1',
+      routes: [
+        {
+          name: 'QrLogin',
+          titleKey: 'qrLogin',
+          component: () => null,
+          feature: 'qrLogin',
+          requiresAuth: true,
+        },
+      ],
+      login: [
+        {
+          id: 'login.qrLogin',
+          titleKey: 'qrLogin',
+          descriptionKey: 'qrLogin.description',
+          route: 'QrLogin',
+          order: 1,
+          feature: 'qrLogin',
+        },
+      ],
+    };
+    const loginBrand = {
+      ...brand,
+      features: { ...brand.features, qrLogin: true },
+      assembly: {
+        ...brand.assembly,
+        modules: ['markets', 'qr-login'],
+        login: ['login.qrLogin'],
+      },
+    };
+
+    const result = assembleApplication(
+      loginBrand,
+      [modules[0], qrLoginModule],
+      {
+        authenticated: true,
+        permissions: new Set(),
+        serverFlags: {},
+      },
+    );
+
+    expect(result.login).toEqual([
+      {
+        id: 'login.qrLogin',
+        titleKey: 'qrLogin',
+        descriptionKey: 'qrLogin.description',
+        route: 'QrLogin',
+      },
+    ]);
+    expect(result.home.map(item => item.id)).toEqual(['home.markets']);
+  });
+
+  it('does not leave a login option when its route is unavailable', () => {
+    const qrLoginModule: RegisteredModule = {
+      id: 'qr-login',
+      version: '1',
+      routes: [
+        {
+          name: 'QrLogin',
+          titleKey: 'qrLogin',
+          component: () => null,
+          feature: 'qrLogin',
+          requiresAuth: true,
+        },
+      ],
+      login: [
+        {
+          id: 'login.qrLogin',
+          titleKey: 'qrLogin',
+          route: 'QrLogin',
+          order: 1,
+          feature: 'qrLogin',
+        },
+      ],
+    };
+    const loginBrand = {
+      ...brand,
+      features: { ...brand.features, qrLogin: true },
+      assembly: {
+        ...brand.assembly,
+        modules: ['markets', 'qr-login'],
+        login: ['login.qrLogin'],
+      },
+    };
+
+    const result = assembleApplication(
+      loginBrand,
+      [modules[0], qrLoginModule],
+      {
+        authenticated: false,
+        permissions: new Set(),
+        serverFlags: {},
+      },
+    );
+
+    expect(result.routes.map(route => route.name)).toEqual(['Markets']);
+    expect(result.login).toEqual([]);
   });
 
   it('uses the configured route when it is visible', () => {

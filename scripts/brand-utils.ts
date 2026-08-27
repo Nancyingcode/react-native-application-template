@@ -92,6 +92,20 @@ export function validateBrand(brand: BrandConfig): string[] {
       );
     }
   }
+  if (!Array.isArray(brand.assembly?.login)) {
+    errors.push('assembly.login must be an array');
+  } else {
+    const duplicates = brand.assembly.login.filter(
+      (id, index, all) => all.indexOf(id) !== index,
+    );
+    if (duplicates.length) {
+      errors.push(
+        `assembly.login contains duplicates: ${[...new Set(duplicates)].join(
+          ', ',
+        )}`,
+      );
+    }
+  }
   if (!brand.native?.ios?.bundleId || !brand.native?.android?.applicationId) {
     errors.push('native bundle identifiers are required');
   }

@@ -24,18 +24,20 @@ export const qrLoginPlugin: AppModuleFactory = {
         feature: 'qrLogin',
       },
     ],
-    home: [
+    login: [
       {
-        id: 'home.qrLogin',
+        id: 'login.qrLogin',
         titleKey: 'auth.qr.menu',
+        descriptionKey: 'auth.qr.loginDescription',
         route: 'QrLogin',
-        order: 5,
+        order: 20,
         feature: 'qrLogin',
       },
     ],
     translations: {
       'zh-CN': {
         'auth.qr.menu': '扫码登录',
+        'auth.qr.loginDescription': '扫描网页登录二维码并核对登录设备',
         'auth.qr.title': '扫描二维码',
         'auth.qr.description': '将登录二维码放入框内，识别后请核对登录设备',
         'auth.qr.securityHint':
@@ -81,6 +83,8 @@ export const qrLoginPlugin: AppModuleFactory = {
       },
       'en-US': {
         'auth.qr.menu': 'Scan to sign in',
+        'auth.qr.loginDescription':
+          'Scan a web sign-in QR code and verify the requesting device.',
         'auth.qr.title': 'Scan QR code',
         'auth.qr.description':
           'Place the sign-in QR code inside the frame, then verify the requesting device.',

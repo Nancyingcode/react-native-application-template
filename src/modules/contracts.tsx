@@ -31,12 +31,23 @@ export interface HomeContribution {
   permissions?: string[];
 }
 
+export interface LoginContribution {
+  id: string;
+  titleKey: string;
+  descriptionKey?: string;
+  route: string;
+  order: number;
+  feature?: string;
+  permissions?: string[];
+}
+
 export interface RegisteredModule {
   id: ModuleId;
   version: string;
   routes: RouteContribution[];
   menus?: MenuContribution[];
   home?: HomeContribution[];
+  login?: LoginContribution[];
   translations?: Record<string, Record<string, string>>;
   initialize?: () => Promise<void> | void;
   dispose?: () => Promise<void> | void;

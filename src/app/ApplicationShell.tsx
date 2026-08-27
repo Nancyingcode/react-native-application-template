@@ -145,6 +145,7 @@ function MenuButton({
 }): React.JSX.Element {
   return (
     <Pressable
+      accessibilityLabel={label}
       onPress={onPress}
       style={styles.menuButton}
       accessibilityRole="tab"
