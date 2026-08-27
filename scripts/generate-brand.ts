@@ -16,6 +16,7 @@ if (errors.length) {
   throw new Error(`Invalid brand "${brandId}":\n- ${errors.join('\n- ')}`);
 }
 const hasQrLogin = brand.assembly.modules.includes('qr-login');
+const hasCommerce = brand.assembly.modules.includes('commerce');
 
 function write(relativePath: string, contents: string): void {
   const target = path.join(ROOT, relativePath);
@@ -146,11 +147,30 @@ let androidManifest = fs
   .replace(
     /\s*<uses-permission android:name="android\.permission\.(?:CAMERA|VIBRATE)"\s*\/>/g,
     '',
+  )
+  .replace(
+    /\s*<!-- commerce-payment-queries:start -->[\s\S]*?<!-- commerce-payment-queries:end -->/g,
+    '',
   );
 if (hasQrLogin) {
   androidManifest = androidManifest.replace(
     /(<uses-permission android:name="android\.permission\.INTERNET"\s*\/>)/,
     '$1\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.VIBRATE" />',
+  );
+}
+if (hasCommerce) {
+  androidManifest = androidManifest.replace(
+    /(<manifest[^>]*>)/,
+    `$1
+
+    <!-- commerce-payment-queries:start -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="alipays" />
+        </intent>
+    </queries>
+    <!-- commerce-payment-queries:end -->`,
   );
 }
 fs.writeFileSync(androidManifestPath, androidManifest);
@@ -193,12 +213,31 @@ info = info.replace(
   /\s*<key>NSCameraUsageDescription<\/key>\s*<string>[^<]*<\/string>/,
   '',
 );
+info = info.replace(
+  /\s*<!-- commerce-payment-schemes:start -->[\s\S]*?<!-- commerce-payment-schemes:end -->/g,
+  '',
+);
 if (hasQrLogin) {
   info = info.replace(
     /\n<\/dict>\s*<\/plist>\s*$/,
     `\n\t<key>NSCameraUsageDescription</key>\n\t<string>${escapeXml(
       brand.native.permissions.cameraUsage,
     )}</string>\n</dict>\n</plist>\n`,
+  );
+}
+if (hasCommerce) {
+  info = info.replace(
+    /\n<\/dict>\s*<\/plist>\s*$/,
+    `
+	<!-- commerce-payment-schemes:start -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>alipays</string>
+	</array>
+	<!-- commerce-payment-schemes:end -->
+</dict>
+</plist>
+`,
   );
 }
 fs.writeFileSync(infoPath, info);

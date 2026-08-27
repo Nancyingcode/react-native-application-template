@@ -6,6 +6,7 @@ export type ModuleId =
   | 'trading'
   | 'portfolio'
   | 'news'
+  | 'commerce'
   | (string & {});
 
 export type FeatureValue = boolean | string | number;
@@ -80,5 +81,9 @@ export interface BrandConfig {
   strategies: {
     kyc: 'standard' | 'enhanced';
     tradingApi: 'rest' | 'broker-adapter';
+  };
+  commerce?: {
+    currency: string;
+    paymentProviders: Array<'wechat' | 'alipay'>;
   };
 }

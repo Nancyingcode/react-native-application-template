@@ -41,6 +41,7 @@
     "trading": true,
     "portfolio": true,
     "news": true,
+    "commerce": true,
     "advancedOrders": true,
     "qrLogin": true
   },
@@ -97,18 +98,31 @@
       "trading",
       "portfolio",
       "news",
+      "commerce",
       "advanced-orders"
     ],
-    "menu": ["menu.markets", "menu.trading", "menu.portfolio", "menu.news"],
+    "menu": [
+      "menu.markets",
+      "menu.trading",
+      "menu.portfolio",
+      "menu.news",
+      "menu.commerce",
+      "menu.commerceCart"
+    ],
     "home": [
       "home.qrLogin",
       "home.markets",
       "home.portfolio",
       "home.news",
       "home.onboarding",
+      "home.commerce",
       "home.advancedOrders"
     ],
     "initialRoute": "Home"
   },
-  "strategies": { "kyc": "enhanced", "tradingApi": "broker-adapter" }
+  "strategies": { "kyc": "enhanced", "tradingApi": "broker-adapter" },
+  "commerce": {
+    "currency": "CNY",
+    "paymentProviders": ["wechat", "alipay"]
+  }
 }

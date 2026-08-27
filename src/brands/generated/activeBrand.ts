@@ -7,6 +7,7 @@ import {marketsModule} from '../../modules/markets';
 import {tradingModule} from '../../modules/trading';
 import {portfolioModule} from '../../modules/portfolio';
 import {newsModule} from '../../modules/news';
+import {commerceModule} from '../../modules/commerce';
 import {advancedOrdersPlugin} from '../../plugins/advanced-orders';
 import type {BrandConfig} from '../../brand/types';
 
@@ -19,5 +20,6 @@ export const activeModuleFactories = [
   tradingModule,
   portfolioModule,
   newsModule,
+  commerceModule,
   advancedOrdersPlugin,
 ];
