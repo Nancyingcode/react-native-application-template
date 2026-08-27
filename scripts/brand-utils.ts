@@ -22,6 +22,10 @@ export const MODULES: Record<string, ModuleDefinition> = {
     importPath: '../../modules/portfolio',
   },
   news: { symbol: 'newsModule', importPath: '../../modules/news' },
+  commerce: {
+    symbol: 'commerceModule',
+    importPath: '../../modules/commerce',
+  },
   'qr-login': { symbol: 'qrLoginPlugin', importPath: '../../plugins/qr-login' },
   'advanced-orders': {
     symbol: 'advancedOrdersPlugin',

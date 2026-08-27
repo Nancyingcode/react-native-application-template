@@ -68,5 +68,11 @@
 	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>用于扫描网页登录二维码；相机画面不会被保存或上传。</string>
+	<!-- commerce-payment-schemes:start -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>alipays</string>
+	</array>
+	<!-- commerce-payment-schemes:end -->
 </dict>
 </plist>

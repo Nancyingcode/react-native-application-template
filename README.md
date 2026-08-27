@@ -11,6 +11,7 @@
 - 差异策略：KYC 使用策略；交易供应商使用适配器；高级订单作为完全独立、可从安装包移除的插件示例。
 - 原生生成：品牌命令同步 Android application ID、App 名称、Deep Link、渠道和签名入口，以及 iOS Bundle ID、Team、Provisioning Profile、URL Scheme 和商店元数据清单。
 - 扫码登录：独立 `qr-login` 插件提供相机权限引导、二维码扫描、设备确认、倒计时、确认/拒绝和完成状态；相机在离开页面或进入后台时停止。
+- 电商模块：商品列表/详情、模块内购物车、订单确认，以及微信支付和支付宝支付跳转与服务端结果确认。
 
 ## 快速开始
 
@@ -122,3 +123,17 @@ npm run lint
 ```
 
 测试覆盖模块注册冲突、构建/运行功能门控、装配顺序、缓存过期和 App 渲染。
+
+## 电商与支付接口
+
+`commerce` 模块默认展示示例商品，用户下拉刷新后会读取服务端目录。生产环境需实现以下接口：
+
+```text
+GET  /v1/commerce/products
+GET  /v1/commerce/products/:id
+POST /v1/commerce/orders
+POST /v1/commerce/payments
+POST /v1/commerce/payments/status
+```
+
+创建支付请求体包含 `{ orderId, provider, idempotencyKey }`，返回 `{ id, orderId, provider, redirectUrl, status }`；查单请求体包含 `{ paymentId }`。微信采用 H5 收银台，`redirectUrl` 仅接受 `https://wx.tenpay.com`；支付宝仅接受 `alipays://` 或支付宝官方 HTTPS 域名。服务端负责金额和库存复算、幂等下单、签名、异步通知验签；客户端在回到前台后查询服务端状态，不信任跳转参数作为支付成功依据。订单与支付接口要求有效 Bearer Token。

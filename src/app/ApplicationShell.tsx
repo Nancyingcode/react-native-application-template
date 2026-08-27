@@ -2,12 +2,21 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApplication } from './ApplicationProvider';
-import { AppNavigationProvider } from './navigation';
+import { AppNavigationProvider, type RouteParams } from './navigation';
+
+interface NavigationEntry {
+  routeName: string;
+  params: RouteParams;
+}
 
 export function ApplicationShell(): React.JSX.Element {
   const { brand, services, application } = useApplication();
   const insets = useSafeAreaInsets();
-  const [routeName, setRouteName] = useState(application.initialRoute);
+  const [navigation, setNavigation] = useState<NavigationEntry>({
+    routeName: application.initialRoute,
+    params: {},
+  });
+  const routeName = navigation.routeName;
   const colors = brand.theme.colors;
   const route = useMemo(
     () => application.routes.find(candidate => candidate.name === routeName),
@@ -21,8 +30,8 @@ export function ApplicationShell(): React.JSX.Element {
     });
   }, [route?.titleKey, routeName, services.analytics]);
 
-  const navigate = (next: string): void => {
-    setRouteName(next);
+  const navigate = (next: string, params: RouteParams = {}): void => {
+    setNavigation({ routeName: next, params });
   };
 
   return (
@@ -81,7 +90,7 @@ export function ApplicationShell(): React.JSX.Element {
             </Text>
           </ScrollView>
         ) : (
-          <AppNavigationProvider navigate={navigate}>
+          <AppNavigationProvider navigate={navigate} params={navigation.params}>
             <Screen />
           </AppNavigationProvider>
         )}
