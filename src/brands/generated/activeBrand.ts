@@ -12,6 +12,9 @@ import {advancedOrdersPlugin} from '../../plugins/advanced-orders';
 import type {BrandConfig} from '../../brand/types';
 
 export const activeBrand = rawBrand as BrandConfig;
+export const activeEnvironment = 'development' as const;
+export const activeVersionName = '1.0.0';
+export const activeBuildNumber = 1;
 export const activeModuleFactories = [
   authModule,
   qrLoginPlugin,

@@ -1,6 +1,15 @@
 import React, {createContext, useContext, useEffect, useMemo, useState} from 'react';
-import type {BrandConfig, FeatureValue} from '../brand/types';
-import {activeBrand, activeModuleFactories} from '../brands/generated/activeBrand';
+import type {
+  BrandConfig,
+  BrandEnvironmentName,
+  FeatureValue,
+} from '../brand/types';
+import {
+  activeBrand,
+  activeEnvironment,
+  activeModuleFactories,
+  activeVersionName,
+} from '../brands/generated/activeBrand';
 import {createCoreServices, type CoreServices} from '../core/services';
 import {ModuleRegistry} from '../modules/ModuleRegistry';
 import type {RegisteredModule} from '../modules/contracts';
@@ -9,6 +18,7 @@ import {useAnalyticsLifecycle} from './useAnalyticsLifecycle';
 
 interface ApplicationContextValue {
   brand: BrandConfig;
+  environment: BrandEnvironmentName;
   services: CoreServices;
   modules: RegisteredModule[];
   application: AssembledApplication;
@@ -19,7 +29,10 @@ const ApplicationContext = createContext<ApplicationContextValue | null>(null);
 
 export function ApplicationProvider({children}: React.PropsWithChildren): React.JSX.Element {
   const [serverFlags, setServerFlags] = useState<Record<string, FeatureValue>>({});
-  const services = useMemo(() => createCoreServices(activeBrand), []);
+  const services = useMemo(
+    () => createCoreServices(activeBrand, activeEnvironment, activeVersionName),
+    [],
+  );
   const registry = useMemo(() => {
     const moduleRegistry = new ModuleRegistry();
     for (const factory of activeModuleFactories) {
@@ -54,6 +67,7 @@ export function ApplicationProvider({children}: React.PropsWithChildren): React.
     <ApplicationContext.Provider
       value={{
         brand: activeBrand,
+        environment: activeEnvironment,
         services,
         modules: registry.all(),
         application,

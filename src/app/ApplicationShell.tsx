@@ -18,7 +18,7 @@ interface NavigationEntry {
 }
 
 export function ApplicationShell(): React.JSX.Element {
-  const { brand, services, application } = useApplication();
+  const { brand, environment, services, application } = useApplication();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [navigation, setNavigation] = useState<NavigationEntry>({
@@ -89,25 +89,29 @@ export function ApplicationShell(): React.JSX.Element {
             {brand.appName}
           </Text>
         </View>
-        <View
-          style={[
-            styles.environmentBadge,
-            compactHeader && styles.environmentBadgeCompact,
-            { backgroundColor: colors.background, borderColor: colors.border },
-          ]}
-        >
-          <Text
-            numberOfLines={1}
+        {environment !== 'production' ? (
+          <View
             style={[
-              styles.environment,
-              compactHeader && styles.environmentCompact,
-              { color: colors.textMuted },
+              styles.environmentBadge,
+              compactHeader && styles.environmentBadgeCompact,
+              { backgroundColor: colors.background, borderColor: colors.border },
             ]}
           >
-            {services.i18n.t('app.environment')} ·{' '}
-            {brand.compliance.jurisdiction}
-          </Text>
-        </View>
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.environment,
+                compactHeader && styles.environmentCompact,
+                { color: colors.textMuted },
+              ]}
+            >
+              {environment === 'development'
+                ? services.i18n.t('app.environment')
+                : environment.toUpperCase()}{' '}
+              · {brand.compliance.jurisdiction}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.content}>

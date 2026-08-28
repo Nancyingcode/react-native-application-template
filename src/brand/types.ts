@@ -1,4 +1,5 @@
 export type BrandId = string;
+export type BrandEnvironmentName = 'development' | 'staging' | 'production';
 export type ModuleId =
   | 'auth'
   | 'onboarding'
@@ -64,7 +65,7 @@ export interface BrandConfig {
   theme: ThemeTokens;
   copy: Record<string, Record<string, string>>;
   features: Record<string, FeatureValue>;
-  environments: Record<'development' | 'staging' | 'production', BrandEnvironment>;
+  environments: Record<BrandEnvironmentName, BrandEnvironment>;
   compliance: {
     jurisdiction: string;
     riskDisclosureKey: string;

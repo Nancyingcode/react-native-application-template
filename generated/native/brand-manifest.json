@@ -1,6 +1,9 @@
 {
   "brandId": "aurora",
   "appName": "Aurora Invest",
+  "environment": "development",
+  "versionName": "1.0.0",
+  "buildNumber": 1,
   "modules": [
     "auth",
     "qr-login",

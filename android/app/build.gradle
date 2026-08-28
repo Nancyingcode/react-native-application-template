@@ -64,11 +64,42 @@ def brandPropertiesFile = rootProject.file("../generated/native/android.properti
 if (brandPropertiesFile.exists()) {
     brandPropertiesFile.withInputStream { brandProperties.load(it) }
 }
-def brandKeystore = brandProperties.getProperty("keystorePath", "")
-def brandKeyAlias = brandProperties.getProperty("keyAlias", "")
-def releaseSigningReady = brandKeystore && brandKeyAlias &&
-        System.getenv("BRAND_KEYSTORE_PASSWORD") && System.getenv("BRAND_KEY_PASSWORD") &&
-        rootProject.file("../${brandKeystore}").exists()
+def brandVersionName = (project.findProperty("versionName") ?:
+        System.getenv("APP_VERSION") ?:
+        brandProperties.getProperty("versionName", "1.0.0")).toString()
+if (!(brandVersionName ==~ /\d+(\.\d+){0,2}/)) {
+    throw new GradleException("versionName must contain one to three numeric components")
+}
+def brandVersionCodeValue = (project.findProperty("versionCode") ?:
+        System.getenv("BUILD_NUMBER") ?:
+        brandProperties.getProperty("versionCode", "1")).toString()
+if (!(brandVersionCodeValue ==~ /\d+/) ||
+        brandVersionCodeValue.toLong() < 1 ||
+        brandVersionCodeValue.toLong() > 2100000000L) {
+    throw new GradleException("versionCode must be an integer between 1 and 2100000000")
+}
+def brandVersionCode = brandVersionCodeValue.toInteger()
+def releaseSigningMode = (project.findProperty("releaseSigningMode") ?: "signed").toString()
+if (!(releaseSigningMode in ["signed", "unsigned"])) {
+    throw new GradleException("releaseSigningMode must be signed or unsigned")
+}
+def brandKeystore = System.getenv("BRAND_KEYSTORE_PATH") ?:
+        brandProperties.getProperty("keystorePath", "")
+def brandKeyAlias = System.getenv("BRAND_KEY_ALIAS") ?:
+        brandProperties.getProperty("keyAlias", "")
+def brandKeystorePassword = releaseSigningMode == "unsigned"
+        ? null
+        : System.getenv("BRAND_KEYSTORE_PASSWORD")
+def brandKeyPassword = releaseSigningMode == "unsigned"
+        ? null
+        : System.getenv("BRAND_KEY_PASSWORD")
+def brandKeystoreFile = brandKeystore
+        ? (new File(brandKeystore).isAbsolute()
+            ? file(brandKeystore)
+            : rootProject.file("../${brandKeystore}"))
+        : null
+def releaseSigningReady = brandKeystoreFile?.isFile() && brandKeystoreFile.canRead() && brandKeyAlias &&
+        brandKeystorePassword && brandKeyPassword
 def cxxBuildDir = System.getenv("RN_CXX_BUILD_DIR")
 if (!cxxBuildDir && System.getProperty("os.name").toLowerCase().contains("windows")) {
     def projectHash = Integer.toHexString(rootProject.projectDir.absolutePath.hashCode())
@@ -107,13 +138,14 @@ android {
         applicationId brandProperties.getProperty("applicationId", "com.whitelabelapp")
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode brandVersionCode
+        versionName brandVersionName
         manifestPlaceholders = [
             deepLinkScheme: brandProperties.getProperty("deepLinkScheme", "whitelabel"),
             deepLinkHost: brandProperties.getProperty("deepLinkHost", "app.example.com")
         ]
         buildConfigField "String", "BRAND_ID", "\"${brandProperties.getProperty('brandId', 'default')}\""
+        buildConfigField "String", "APP_ENVIRONMENT", "\"${brandProperties.getProperty('environment', 'development')}\""
         buildConfigField "String", "CHANNEL_ID", "\"${brandProperties.getProperty('channelId', 'direct')}\""
         externalNativeBuild {
             cmake {
@@ -133,26 +165,60 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
-        if (releaseSigningReady) {
+        if (releaseSigningReady && releaseSigningMode == "signed") {
             release {
-                storeFile rootProject.file("../${brandKeystore}")
-                storePassword System.getenv("BRAND_KEYSTORE_PASSWORD")
+                storeFile brandKeystoreFile
+                storePassword brandKeystorePassword
                 keyAlias brandKeyAlias
-                keyPassword System.getenv("BRAND_KEY_PASSWORD")
+                keyPassword brandKeyPassword
             }
         }
     }
     buildTypes {
         debug {
-            signingConfig releaseSigningReady ? signingConfigs.release : signingConfigs.debug
+            signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Unsigned output is opt-in so missing CI secrets can never silently
+            // downgrade a store build to a non-publishable artifact.
+            signingConfig releaseSigningReady && releaseSigningMode == "signed"
+                ? signingConfigs.release
+                : null
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
+    }
+}
+
+def verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
+    group = "verification"
+    description = "Validates the requested release signing mode"
+
+    doLast {
+        if (releaseSigningMode == "unsigned") {
+            logger.lifecycle("Release signing mode: unsigned (non-publishable artifact).")
+            return
+        }
+
+        def failures = []
+        if (!brandKeystore) failures << "BRAND_KEYSTORE_PATH/native.android.keystorePath"
+        if (brandKeystoreFile && !brandKeystoreFile.isFile()) failures << "keystore file"
+        if (brandKeystoreFile?.isFile() && !brandKeystoreFile.canRead()) failures << "readable keystore file"
+        if (!brandKeyAlias) failures << "BRAND_KEY_ALIAS/native.android.keyAlias"
+        if (!brandKeystorePassword) failures << "BRAND_KEYSTORE_PASSWORD"
+        if (!brandKeyPassword) failures << "BRAND_KEY_PASSWORD"
+        if (!failures.isEmpty()) {
+            throw new GradleException(
+                "Release signing is incomplete: ${failures.join(', ')}. " +
+                "Use -PreleaseSigningMode=unsigned only for a non-publishable verification package."
+            )
+        }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name == "preReleaseBuild") {
+        task.dependsOn(verifyReleaseSigning)
     }
 }
 

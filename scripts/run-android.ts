@@ -2,34 +2,11 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
-import os from 'node:os';
 import path from 'node:path';
+import { androidEnvironment, findAndroidSdk } from './android-utils';
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_PORT = 8081;
-
-function executable(name: string): string {
-  return process.platform === 'win32' ? `${name}.exe` : name;
-}
-
-function findAndroidSdk(): string | undefined {
-  const candidates = [
-    process.env.ANDROID_HOME,
-    process.env.ANDROID_SDK_ROOT,
-    process.env.LOCALAPPDATA &&
-      path.join(process.env.LOCALAPPDATA, 'Android', 'Sdk'),
-    process.env.HOME && path.join(process.env.HOME, 'Android', 'Sdk'),
-    path.join(os.homedir(), 'AppData', 'Local', 'Android', 'Sdk'),
-  ].filter((candidate): candidate is string => Boolean(candidate));
-
-  return candidates.find(candidate =>
-    fs.existsSync(path.join(candidate, 'platform-tools', executable('adb'))),
-  );
-}
-
-function pathEntries(sdk: string): string[] {
-  return [path.join(sdk, 'platform-tools'), path.join(sdk, 'emulator')];
-}
 
 function readProperties(file: string): Record<string, string> {
   if (!fs.existsSync(file)) {
@@ -104,14 +81,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    ANDROID_HOME: sdk,
-    ANDROID_SDK_ROOT: sdk,
-    PATH: `${pathEntries(sdk).join(path.delimiter)}${path.delimiter}${
-      process.env.PATH || ''
-    }`,
-  };
+  const env = androidEnvironment(sdk);
   const forwarded = process.argv.slice(2);
   const nativeProperties = readProperties(
     path.join(ROOT, 'generated', 'native', 'android.properties'),

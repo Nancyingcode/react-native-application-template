@@ -38,6 +38,75 @@ npm run android
 
 `BRAND=cedar npm run brand:generate` 也可用于 CI。Android/iOS 命令执行前会按 `BRAND`（默认 `aurora`）重新生成，避免误打包上一品牌。
 
+## 正式打包
+
+统一打包命令会依次固化品牌、运行环境、版本和构建号，执行品牌校验、TypeScript、ESLint 与 Jest 门禁，再调用原生 Release 构建。默认环境是 `production`，默认产物是经过正式签名的 Android AAB；签名缺失时会直接失败，不会回退到模板 debug key。
+
+```bash
+# Google Play AAB
+npm run package:android -- --brand aurora --build-number 42
+
+# Release APK
+npm run package:android:apk -- --brand aurora --build-number 42
+
+# App Store IPA（仅 macOS）
+npm run package:ios -- --brand aurora --build-number 42
+```
+
+版本默认读取 `package.json`，CI 可通过参数或环境变量覆盖：
+
+```bash
+npm run package:android -- \
+  --brand aurora \
+  --environment staging \
+  --version 1.2.0 \
+  --build-number 108
+```
+
+优先级为命令行参数 > 环境变量 > 默认值。常用环境变量包括 `BRAND`、`APP_ENV`、`APP_VERSION`、`BUILD_NUMBER`、`BUILD_OUTPUT` 和 `ANDROID_ARCHITECTURES`。版本必须是 1 至 3 段纯数字，构建号必须是 `1..2100000000` 的整数。生成结果会同时传入 JS 运行时、Android `BuildConfig`、iOS 构建设置和埋点版本，避免 Release 包仍连接开发 API 或上报错误版本。
+
+Android 正式签名需要：
+
+```text
+BRAND_KEYSTORE_PATH
+BRAND_KEY_ALIAS
+BRAND_KEYSTORE_PASSWORD
+BRAND_KEY_PASSWORD
+```
+
+路径和 alias 也可以放在品牌清单的 `native.android.keystorePath` / `keyAlias`，密码只能由环境变量注入。发布构建默认只包含 `armeabi-v7a,arm64-v8a`；可通过 `ANDROID_ARCHITECTURES` 覆盖。
+
+没有正式密钥时，可显式生成仅供安装或流水线验证的无签名包：
+
+```bash
+npm run package:android -- --brand aurora --build-number 42 --unsigned
+```
+
+无签名产物的文件名含 `unsigned`，构建清单中 `publishable` 为 `false`，不能上传应用商店。打包脚本还会使用 `apksigner` 或 `jarsigner` 核对实际签名状态，防止标签与产物不一致。
+
+iOS 打包会先用 `bundle check` 校验 Ruby 依赖，再运行 CocoaPods，并只使用 `WhiteLabelApp.xcworkspace`。macOS 首次配置时先执行 `bundle install`；发布流水线应提交并复用 `Gemfile.lock` 与 `ios/Podfile.lock`，避免依赖版本漂移。打包需要完整 AppIcon、有效的 `PrivacyInfo.xcprivacy`、真实 Bundle ID 与 Development Team；可通过 `IOS_DEVELOPMENT_TEAM`、`IOS_PROVISIONING_PROFILE` 覆盖品牌配置。默认生成自动签名的 `app-store-connect` ExportOptions，也可传入：
+
+```bash
+npm run package:ios -- \
+  --brand aurora \
+  --build-number 42 \
+  --ios-export-options ./secure/ExportOptions.plist \
+  --allow-provisioning-updates
+```
+
+App Store Connect API Key 使用 `APP_STORE_CONNECT_API_KEY_PATH`、`APP_STORE_CONNECT_API_KEY_ID`、`APP_STORE_CONNECT_API_ISSUER_ID`，三个变量必须同时提供。`--skip-pods`、`--skip-checks` 只用于已完成相同步骤的受控 CI 阶段；`--clean` 可请求全量原生构建。
+
+产物与校验信息写入以下结构，目录已从 Git 排除：
+
+```text
+artifacts/<brand>/<environment>/<version>+<build-number>/
+├─ android|ios/<brand>-<environment>-<version>-<build-number>-<release|unsigned>.<ext>
+├─ android|ios/<artifact>.sha256
+└─ build-manifest.json
+```
+
+`build-manifest.json` 记录品牌、环境、版本、应用 ID、渠道、模块、Git 源状态、文件大小和 SHA-256，不记录密码或 SDK key 值。同一 checkout 的品牌生成文件是共享的，多品牌打包必须串行执行或使用独立 worktree。
+
 ## 分层
 
 ```text

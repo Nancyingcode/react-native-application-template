@@ -1,6 +1,6 @@
 import {Platform} from 'react-native';
 import packageManifest from '../../package.json';
-import type {BrandConfig} from '../brand/types';
+import type {BrandConfig, BrandEnvironmentName} from '../brand/types';
 import {SessionManager, InMemorySessionStore} from './auth';
 import {MemoryCache} from './cache';
 import {HttpClient} from './http';
@@ -28,7 +28,8 @@ export interface CoreServices {
 
 export function createCoreServices(
   brand: BrandConfig,
-  environment: keyof BrandConfig['environments'] = 'development',
+  environment: BrandEnvironmentName = 'development',
+  appVersion = packageManifest.version,
 ): CoreServices {
   const logger = new ConsoleLogger({brandId: brand.id});
   const cache = new MemoryCache();
@@ -48,7 +49,7 @@ export function createCoreServices(
       app: {
         id: brand.id,
         name: brand.appName,
-        version: packageManifest.version,
+        version: appVersion,
       },
       device: {
         platform: Platform.OS,

@@ -41,6 +41,9 @@ export function listBrands(): string[] {
 }
 
 export function readBrand(id: string): { file: string; config: BrandConfig } {
+  if (!/^[a-z0-9][a-z0-9_-]*$/.test(id)) {
+    throw new Error(`Invalid brand id "${id}"`);
+  }
   const file = path.join(ROOT, 'brands', id, 'brand.config.json');
   if (!fs.existsSync(file)) {
     throw new Error(
@@ -60,6 +63,9 @@ export function validateBrand(brand: BrandConfig): string[] {
     if (typeof brand[field] !== 'string' || !brand[field]) {
       errors.push(`${field} must be a non-empty string`);
     }
+  }
+  if (brand.id && !/^[a-z0-9][a-z0-9_-]*$/.test(brand.id)) {
+    errors.push('id may only contain lowercase letters, numbers, _ and -');
   }
   if (!brand.theme?.colors?.primary || !brand.theme?.colors?.background) {
     errors.push('theme colors are incomplete');
@@ -134,4 +140,11 @@ export function escapeXml(value: unknown): string {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&apos;');
+}
+
+export function escapePropertiesValue(value: unknown): string {
+  return String(value)
+    .replaceAll('\\', '\\\\')
+    .replaceAll('\r', '\\r')
+    .replaceAll('\n', '\\n');
 }
