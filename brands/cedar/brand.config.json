@@ -24,6 +24,8 @@
   "copy": {
     "en-US": {
       "app.home": "Overview",
+      "app.more": "More",
+      "app.close": "Close",
       "app.quickActions": "Explore",
       "app.disclosure": "Market information is delayed and is not investment advice.",
       "app.environment": "Development",

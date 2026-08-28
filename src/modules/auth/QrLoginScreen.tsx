@@ -337,8 +337,9 @@ export function QrLoginScreen(): React.JSX.Element {
       <View style={styles.scannerActions}>
         {device.hasTorch ? (
           <Pressable
-            accessibilityRole="button"
+            accessibilityRole="switch"
             accessibilityLabel={services.i18n.t('auth.qr.torch')}
+            accessibilityState={{ checked: torchEnabled }}
             onPress={() => setTorchEnabled(value => !value)}
             style={({ pressed }) => [
               styles.circleButton,
@@ -613,8 +614,8 @@ function createStyles(theme: ThemeTokens) {
     },
     scannerTitle: {
       color: '#FFFFFF',
-      fontSize: 25,
-      fontWeight: '800',
+      fontSize: 24,
+      fontWeight: '600',
       marginBottom: 8,
     },
     scannerDescription: {
@@ -713,7 +714,7 @@ function createStyles(theme: ThemeTokens) {
       borderWidth: 1,
       borderColor: 'rgba(255,255,255,0.22)',
     },
-    circleButtonIcon: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
+    circleButtonIcon: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
     circleButtonLabel: { color: '#FFFFFF', marginTop: 2, fontSize: 10 },
     devButton: {
       paddingHorizontal: 14,
@@ -733,9 +734,9 @@ function createStyles(theme: ThemeTokens) {
     },
     reviewContent: { flexGrow: 1 },
     permissionIllustration: {
-      width: 104,
-      height: 104,
-      borderRadius: 32,
+      width: 88,
+      height: 88,
+      borderRadius: 20,
       backgroundColor: colors.surface,
       alignItems: 'center',
       justifyContent: 'center',
@@ -758,8 +759,9 @@ function createStyles(theme: ThemeTokens) {
     },
     stateTitle: {
       color: colors.text,
-      fontSize: 25,
-      fontWeight: '800',
+      fontSize: 24,
+      lineHeight: 31,
+      fontWeight: '600',
       textAlign: 'center',
       marginBottom: 10,
     },
@@ -773,21 +775,21 @@ function createStyles(theme: ThemeTokens) {
     primaryButton: {
       width: '100%',
       maxWidth: 360,
-      minHeight: 50,
+      minHeight: 48,
       marginTop: 26,
-      borderRadius: theme.radius.md,
+      borderRadius: 8,
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 20,
     },
-    primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+    primaryButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
     secondaryButton: {
       width: '100%',
       maxWidth: 360,
       minHeight: 48,
       marginTop: 10,
-      borderRadius: theme.radius.md,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: colors.border,
       alignItems: 'center',
@@ -796,7 +798,7 @@ function createStyles(theme: ThemeTokens) {
     secondaryButtonText: {
       color: colors.text,
       fontSize: 14,
-      fontWeight: '700',
+      fontWeight: '600',
     },
     buttonPressed: { opacity: 0.72 },
     buttonDisabled: { opacity: 0.55 },
@@ -809,17 +811,17 @@ function createStyles(theme: ThemeTokens) {
       marginTop: 18,
     },
     reviewIcon: {
-      width: 100,
-      height: 86,
+      width: 88,
+      height: 76,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 16,
     },
     monitorScreen: {
-      width: 76,
-      height: 52,
-      borderRadius: 10,
-      borderWidth: 3,
+      width: 70,
+      height: 48,
+      borderRadius: 9,
+      borderWidth: 2,
       borderColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
@@ -833,7 +835,7 @@ function createStyles(theme: ThemeTokens) {
     monitorStand: {
       width: 34,
       height: 8,
-      borderTopWidth: 3,
+      borderTopWidth: 2,
       borderColor: colors.primary,
     },
     deviceCard: {
@@ -842,7 +844,7 @@ function createStyles(theme: ThemeTokens) {
       marginTop: 22,
       paddingHorizontal: 16,
       paddingVertical: 8,
-      borderRadius: theme.radius.md,
+      borderRadius: 12,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
@@ -860,7 +862,7 @@ function createStyles(theme: ThemeTokens) {
     detailValue: {
       color: colors.text,
       fontSize: 13,
-      fontWeight: '700',
+      fontWeight: '600',
       flexShrink: 1,
       textAlign: 'right',
     },
@@ -881,14 +883,14 @@ function createStyles(theme: ThemeTokens) {
       marginTop: 16,
     },
     resultMark: {
-      width: 88,
-      height: 88,
-      borderRadius: 44,
+      width: 76,
+      height: 76,
+      borderRadius: 38,
       backgroundColor: colors.success,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 24,
     },
-    resultMarkText: { color: '#FFFFFF', fontSize: 19, fontWeight: '900' },
+    resultMarkText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
   });
 }

@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type TextInputProps,
   View,
 } from 'react-native';
 import { useApplication } from '../../app/ApplicationProvider';
@@ -31,30 +32,24 @@ export function AccountPasswordLoginScreen(): React.JSX.Element {
       styles={styles}
       title={services.i18n.t('auth.login.accountPassword.title')}
     >
-      <FieldLabel
+      <AuthField
         label={services.i18n.t('auth.login.account.label')}
-        styles={styles}
-      />
-      <TextInput
         autoCapitalize="none"
         autoCorrect={false}
         onChangeText={setAccount}
         placeholder={services.i18n.t('auth.login.account.placeholder')}
         placeholderTextColor={brand.theme.colors.textMuted}
-        style={styles.input}
+        styles={styles}
         testID="account-login-account"
         value={account}
       />
-      <FieldLabel
+      <AuthField
         label={services.i18n.t('auth.login.password.label')}
-        styles={styles}
-      />
-      <TextInput
         onChangeText={setPassword}
         placeholder={services.i18n.t('auth.login.password.placeholder')}
         placeholderTextColor={brand.theme.colors.textMuted}
         secureTextEntry
-        style={styles.input}
+        styles={styles}
         testID="account-login-password"
         value={password}
       />
@@ -104,32 +99,26 @@ export function PhoneLoginScreen(): React.JSX.Element {
       styles={styles}
       title={services.i18n.t('auth.login.phone.title')}
     >
-      <FieldLabel
+      <AuthField
         label={services.i18n.t('auth.login.phone.label')}
-        styles={styles}
-      />
-      <TextInput
         autoComplete="tel"
         keyboardType="phone-pad"
         onChangeText={setPhone}
         placeholder={services.i18n.t('auth.login.phone.placeholder')}
         placeholderTextColor={brand.theme.colors.textMuted}
-        style={styles.input}
+        styles={styles}
         testID="phone-login-phone"
         value={phone}
       />
       <View style={styles.codeRow}>
         <View style={styles.codeInputContainer}>
-          <FieldLabel
+          <AuthField
             label={services.i18n.t('auth.login.code.label')}
-            styles={styles}
-          />
-          <TextInput
             keyboardType="number-pad"
             onChangeText={setCode}
             placeholder={services.i18n.t('auth.login.code.placeholder')}
             placeholderTextColor={brand.theme.colors.textMuted}
-            style={styles.input}
+            styles={styles}
             testID="phone-login-code"
             value={code}
           />
@@ -144,7 +133,12 @@ export function PhoneLoginScreen(): React.JSX.Element {
           ]}
           testID="phone-login-send-code"
         >
-          <Text style={styles.codeButtonText}>
+          <Text
+            style={[
+              styles.codeButtonText,
+              !phone.trim() && styles.codeButtonTextMuted,
+            ]}
+          >
             {services.i18n.t(
               codeSent ? 'auth.login.code.sent' : 'auth.login.code.send',
             )}
@@ -187,17 +181,14 @@ export function ForgotPasswordScreen(): React.JSX.Element {
       styles={styles}
       title={services.i18n.t('auth.login.forgotPassword.title')}
     >
-      <FieldLabel
+      <AuthField
         label={services.i18n.t('auth.login.forgotPassword.identifierLabel')}
-        styles={styles}
-      />
-      <TextInput
         autoCapitalize="none"
         autoCorrect={false}
         onChangeText={setAccount}
         placeholder={services.i18n.t('auth.login.account.placeholder')}
         placeholderTextColor={brand.theme.colors.textMuted}
-        style={styles.input}
+        styles={styles}
         testID="forgot-password-account"
         value={account}
       />
@@ -233,9 +224,12 @@ function AuthMethodLayout({
       contentContainerStyle={styles.formContent}
       style={styles.root}
       keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
       <View style={styles.formCard}>
-        <Text style={styles.formTitle}>{title}</Text>
+        <Text accessibilityRole="header" style={styles.formTitle}>
+          {title}
+        </Text>
         <Text style={styles.formDescription}>{description}</Text>
         <View style={styles.formFields}>{children}</View>
       </View>
@@ -243,14 +237,35 @@ function AuthMethodLayout({
   );
 }
 
-function FieldLabel({
+function AuthField({
   label,
   styles,
-}: {
+  onBlur,
+  onFocus,
+  ...inputProps
+}: Omit<TextInputProps, 'style'> & {
   label: string;
   styles: ReturnType<typeof createStyles>;
 }): React.JSX.Element {
-  return <Text style={styles.fieldLabel}>{label}</Text>;
+  const [focused, setFocused] = useState(false);
+  return (
+    <>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        {...inputProps}
+        accessibilityLabel={inputProps.accessibilityLabel ?? label}
+        onBlur={event => {
+          setFocused(false);
+          onBlur?.(event);
+        }}
+        onFocus={event => {
+          setFocused(true);
+          onFocus?.(event);
+        }}
+        style={[styles.input, focused && styles.inputFocused]}
+      />
+    </>
+  );
 }
 
 function ActionButton({
@@ -269,16 +284,24 @@ function ActionButton({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.formButton,
         disabled && styles.formButtonDisabled,
-        pressed && styles.formButtonPressed,
+        pressed && !disabled && styles.formButtonPressed,
       ]}
       testID={testID}
     >
-      <Text style={styles.formButtonText}>{label}</Text>
+      <Text
+        style={[
+          styles.formButtonText,
+          disabled && styles.formButtonTextDisabled,
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -314,61 +337,78 @@ function createStyles(theme: ThemeTokens) {
       flexGrow: 1,
       justifyContent: 'center',
       padding: theme.spacing.lg,
+      paddingVertical: theme.spacing.xl,
     },
     formCard: {
       width: '100%',
-      maxWidth: 520,
+      maxWidth: 480,
       alignSelf: 'center',
       padding: theme.spacing.lg,
       borderRadius: theme.radius.lg,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
+      shadowColor: '#101828',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.05,
+      shadowRadius: 12,
+      elevation: 2,
     },
     formTitle: {
       color: colors.text,
       fontSize: theme.typography.titleSize,
-      fontWeight: '800',
+      lineHeight: 36,
+      fontWeight: '600',
+      letterSpacing: -0.4,
     },
     formDescription: {
       color: colors.textMuted,
       fontSize: theme.typography.bodySize,
-      lineHeight: 22,
+      lineHeight: 23,
       marginTop: theme.spacing.sm,
     },
     formFields: { marginTop: theme.spacing.lg },
     fieldLabel: {
       color: colors.text,
       fontSize: 13,
-      fontWeight: '700',
-      marginBottom: theme.spacing.xs,
+      fontWeight: '600',
+      marginBottom: 6,
     },
     input: {
       minHeight: 48,
       color: colors.text,
+      backgroundColor: colors.background,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: theme.radius.md,
+      borderRadius: 8,
       paddingHorizontal: theme.spacing.md,
       marginBottom: theme.spacing.md,
+      fontSize: 15,
+    },
+    inputFocused: {
+      borderColor: colors.primary,
+      backgroundColor: colors.surface,
     },
     formButton: {
-      minHeight: 50,
-      borderRadius: theme.radius.md,
+      minHeight: 48,
+      borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.primary,
       marginTop: theme.spacing.sm,
     },
-    formButtonDisabled: { opacity: 0.5 },
+    formButtonDisabled: { backgroundColor: colors.border },
     formButtonPressed: { backgroundColor: colors.primaryPressed },
-    formButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+    formButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+    formButtonTextDisabled: { color: colors.textMuted },
     linkButton: {
       alignSelf: 'center',
-      padding: theme.spacing.sm,
+      minHeight: 44,
+      paddingHorizontal: theme.spacing.md,
+      justifyContent: 'center',
       marginTop: theme.spacing.sm,
     },
-    linkButtonText: { color: colors.primary, fontSize: 13, fontWeight: '700' },
+    linkButtonText: { color: colors.primary, fontSize: 13, fontWeight: '600' },
     codeRow: {
       flexDirection: 'row',
       alignItems: 'flex-end',
@@ -377,14 +417,15 @@ function createStyles(theme: ThemeTokens) {
     codeInputContainer: { flex: 1 },
     codeButton: {
       minHeight: 48,
-      borderRadius: theme.radius.md,
-      paddingHorizontal: theme.spacing.sm,
+      borderRadius: 8,
+      paddingHorizontal: 14,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.primary,
       marginBottom: theme.spacing.md,
     },
-    codeButtonMuted: { opacity: 0.5 },
-    codeButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+    codeButtonMuted: { backgroundColor: colors.border },
+    codeButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
+    codeButtonTextMuted: { color: colors.textMuted },
   });
 }

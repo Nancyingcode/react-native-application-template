@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApplication } from './ApplicationProvider';
 import { AppNavigationProvider, type RouteParams } from './navigation';
@@ -12,10 +20,12 @@ interface NavigationEntry {
 export function ApplicationShell(): React.JSX.Element {
   const { brand, services, application } = useApplication();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [navigation, setNavigation] = useState<NavigationEntry>({
     routeName: application.initialRoute,
     params: {},
   });
+  const [moreOpen, setMoreOpen] = useState(false);
   const routeName = navigation.routeName;
   const colors = brand.theme.colors;
   const route = useMemo(
@@ -23,6 +33,15 @@ export function ApplicationShell(): React.JSX.Element {
     [application.routes, routeName],
   );
   const Screen = route?.component;
+  const primaryMenu = application.menu.slice(0, 3);
+  const secondaryMenu = application.menu.slice(3);
+  const secondaryActive = secondaryMenu.some(item => item.route === routeName);
+  const horizontalPadding = width >= 768 ? 32 : 20;
+  const compactHeader = width <= 375;
+  const contentWidth = Math.min(width - horizontalPadding * 2, 960);
+  const columnCount = width >= 768 ? 3 : 2;
+  const cardGap = 12;
+  const cardWidth = (contentWidth - cardGap * (columnCount - 1)) / columnCount;
 
   useEffect(() => {
     services.analytics.screen(routeName, {
@@ -31,6 +50,7 @@ export function ApplicationShell(): React.JSX.Element {
   }, [route?.titleKey, routeName, services.analytics]);
 
   const navigate = (next: string, params: RouteParams = {}): void => {
+    setMoreOpen(false);
     setNavigation({ routeName: next, params });
   };
 
@@ -41,15 +61,49 @@ export function ApplicationShell(): React.JSX.Element {
         { backgroundColor: colors.background, paddingTop: insets.top },
       ]}
     >
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <View style={[styles.brandMark, { backgroundColor: colors.primary }]}>
-          <Text style={styles.brandMarkText}>{brand.appName.slice(0, 1)}</Text>
-        </View>
-        <View style={styles.headerCopy}>
-          <Text style={[styles.appName, { color: colors.text }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: colors.surface,
+            borderBottomColor: colors.border,
+            paddingLeft: horizontalPadding + insets.left,
+            paddingRight: horizontalPadding + insets.right,
+          },
+        ]}
+      >
+        <View style={styles.brandIdentity}>
+          <View style={[styles.brandMark, { backgroundColor: colors.primary }]}>
+            <Text style={styles.brandMarkText}>
+              {brand.appName.slice(0, 1)}
+            </Text>
+          </View>
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.appName,
+              compactHeader && styles.appNameCompact,
+              { color: colors.text },
+            ]}
+          >
             {brand.appName}
           </Text>
-          <Text style={[styles.environment, { color: colors.textMuted }]}>
+        </View>
+        <View
+          style={[
+            styles.environmentBadge,
+            compactHeader && styles.environmentBadgeCompact,
+            { backgroundColor: colors.background, borderColor: colors.border },
+          ]}
+        >
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.environment,
+              compactHeader && styles.environmentCompact,
+              { color: colors.textMuted },
+            ]}
+          >
             {services.i18n.t('app.environment')} ·{' '}
             {brand.compliance.jurisdiction}
           </Text>
@@ -58,36 +112,91 @@ export function ApplicationShell(): React.JSX.Element {
 
       <View style={styles.content}>
         {routeName === 'Home' || !Screen ? (
-          <ScrollView contentContainerStyle={styles.home}>
-            <Text style={[styles.homeTitle, { color: colors.text }]}>
-              {services.i18n.t('app.quickActions')}
-            </Text>
-            <View style={styles.cardGrid}>
-              {application.home.map(item => (
-                <Pressable
-                  accessibilityRole="button"
-                  key={item.id}
-                  onPress={() => navigate(item.route)}
-                  style={({ pressed }) => [
-                    styles.card,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: pressed ? colors.primary : colors.border,
-                    },
+          <ScrollView
+            contentContainerStyle={[
+              styles.home,
+              { paddingHorizontal: horizontalPadding },
+            ]}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.homeInner}>
+              <Text
+                accessibilityRole="header"
+                style={[styles.homeTitle, { color: colors.text }]}
+              >
+                {services.i18n.t('app.quickActions')}
+              </Text>
+              <View style={styles.cardGrid}>
+                {application.home.map(item => (
+                  <Pressable
+                    accessibilityLabel={services.i18n.t(item.titleKey)}
+                    accessibilityRole="button"
+                    key={item.id}
+                    onPress={() => navigate(item.route)}
+                    style={({ pressed }) => [
+                      styles.card,
+                      {
+                        width: cardWidth,
+                        backgroundColor: colors.surface,
+                        borderColor: pressed ? colors.primary : colors.border,
+                      },
+                      pressed && styles.cardPressed,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.cardIcon,
+                        { backgroundColor: colors.background },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.cardIconText, { color: colors.primary }]}
+                      >
+                        {getNavigationGlyph(item.id)}
+                      </Text>
+                    </View>
+                    <View style={styles.cardFooter}>
+                      <Text style={[styles.cardTitle, { color: colors.text }]}>
+                        {services.i18n.t(item.titleKey)}
+                      </Text>
+                      <Text
+                        style={[styles.cardArrow, { color: colors.textMuted }]}
+                      >
+                        ›
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+              <View
+                style={[
+                  styles.disclosureBox,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.disclosureIcon,
+                    { backgroundColor: colors.background },
                   ]}
                 >
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>
-                    {services.i18n.t(item.titleKey)}
+                  <Text
+                    style={[
+                      styles.disclosureIconText,
+                      { color: colors.primary },
+                    ]}
+                  >
+                    !
                   </Text>
-                  <Text style={[styles.cardArrow, { color: colors.primary }]}>
-                    →
-                  </Text>
-                </Pressable>
-              ))}
+                </View>
+                <Text style={[styles.disclosure, { color: colors.textMuted }]}>
+                  {services.i18n.t(brand.compliance.riskDisclosureKey)}
+                </Text>
+              </View>
             </View>
-            <Text style={[styles.disclosure, { color: colors.textMuted }]}>
-              {services.i18n.t(brand.compliance.riskDisclosureKey)}
-            </Text>
           </ScrollView>
         ) : (
           <AppNavigationProvider navigate={navigate} params={navigation.params}>
@@ -96,48 +205,144 @@ export function ApplicationShell(): React.JSX.Element {
         )}
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.menu,
-          { paddingBottom: Math.max(insets.bottom, 10) },
-        ]}
+      <View
         style={[
           styles.menuBar,
-          { backgroundColor: colors.surface, borderTopColor: colors.border },
+          {
+            backgroundColor: colors.surface,
+            borderTopColor: colors.border,
+            paddingBottom: Math.max(insets.bottom, 8),
+            paddingLeft: insets.left,
+            paddingRight: insets.right,
+          },
         ]}
       >
         <MenuButton
           active={routeName === 'Home'}
+          glyph="⌂"
           label={services.i18n.t('app.home')}
           onPress={() => navigate('Home')}
           color={colors.primary}
           muted={colors.textMuted}
         />
-        {application.menu.map(item => (
+        {primaryMenu.map(item => (
           <MenuButton
             key={item.id}
             active={routeName === item.route}
+            glyph={getNavigationGlyph(item.id)}
             label={services.i18n.t(item.labelKey)}
             onPress={() => navigate(item.route)}
             color={colors.primary}
             muted={colors.textMuted}
           />
         ))}
-      </ScrollView>
+        {secondaryMenu.length > 0 ? (
+          <MenuButton
+            active={secondaryActive || moreOpen}
+            glyph="•••"
+            label={services.i18n.t('app.more')}
+            onPress={() => setMoreOpen(true)}
+            color={colors.primary}
+            muted={colors.textMuted}
+          />
+        ) : null}
+      </View>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setMoreOpen(false)}
+        statusBarTranslucent
+        transparent
+        visible={moreOpen}
+      >
+        <View style={styles.modalRoot}>
+          <Pressable
+            accessibilityLabel={services.i18n.t('app.close')}
+            accessibilityRole="button"
+            onPress={() => setMoreOpen(false)}
+            style={styles.modalBackdrop}
+          />
+          <View
+            style={[
+              styles.moreSheet,
+              {
+                backgroundColor: colors.surface,
+                paddingBottom: Math.max(insets.bottom, 20),
+              },
+            ]}
+          >
+            <View
+              style={[styles.sheetHandle, { backgroundColor: colors.border }]}
+            />
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>
+              {services.i18n.t('app.more')}
+            </Text>
+            <View style={styles.moreList}>
+              {secondaryMenu.map(item => {
+                const active = routeName === item.route;
+                return (
+                  <Pressable
+                    accessibilityLabel={services.i18n.t(item.labelKey)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    key={item.id}
+                    onPress={() => navigate(item.route)}
+                    style={({ pressed }) => [
+                      styles.moreItem,
+                      { borderColor: colors.border },
+                      active && { backgroundColor: colors.background },
+                      pressed && styles.moreItemPressed,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.moreIcon,
+                        { backgroundColor: colors.background },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.moreIconText,
+                          { color: active ? colors.primary : colors.textMuted },
+                        ]}
+                      >
+                        {getNavigationGlyph(item.id)}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.moreLabel,
+                        { color: active ? colors.primary : colors.text },
+                      ]}
+                    >
+                      {services.i18n.t(item.labelKey)}
+                    </Text>
+                    <Text
+                      style={[styles.moreArrow, { color: colors.textMuted }]}
+                    >
+                      ›
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 function MenuButton({
   active,
+  glyph,
   label,
   onPress,
   color,
   muted,
 }: {
   active: boolean;
+  glyph: string;
   label: string;
   onPress(): void;
   color: string;
@@ -146,11 +351,20 @@ function MenuButton({
   return (
     <Pressable
       accessibilityLabel={label}
-      onPress={onPress}
-      style={styles.menuButton}
       accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.menuButton,
+        pressed && styles.menuPressed,
+      ]}
     >
-      <Text style={[styles.menuDot, { color: active ? color : muted }]}>●</Text>
+      <View
+        style={[styles.activeIndicator, active && { backgroundColor: color }]}
+      />
+      <Text style={[styles.menuGlyph, { color: active ? color : muted }]}>
+        {glyph}
+      </Text>
       <Text style={[styles.menuLabel, { color: active ? color : muted }]}>
         {label}
       </Text>
@@ -158,44 +372,199 @@ function MenuButton({
   );
 }
 
+function getNavigationGlyph(id: string): string {
+  if (id.includes('login')) {
+    return '○';
+  }
+  if (id.includes('market')) {
+    return '↗';
+  }
+  if (id.includes('trading')) {
+    return '⇄';
+  }
+  if (id.includes('portfolio')) {
+    return '◔';
+  }
+  if (id.includes('news')) {
+    return '≡';
+  }
+  if (id.includes('onboarding')) {
+    return '+';
+  }
+  if (id.includes('commerce')) {
+    return '□';
+  }
+  if (id.includes('advanced')) {
+    return '≋';
+  }
+  return '•';
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: {
-    height: 70,
+    minHeight: 66,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 20,
+    gap: 12,
   },
+  brandIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   brandMark: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brandMarkText: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' },
-  headerCopy: { marginLeft: 12 },
-  appName: { fontSize: 17, fontWeight: '800' },
-  environment: { fontSize: 11, marginTop: 2 },
+  brandMarkText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
+  appName: { flexShrink: 1, marginLeft: 10, fontSize: 16, fontWeight: '600' },
+  appNameCompact: { marginLeft: 8, fontSize: 15 },
+  environmentBadge: {
+    maxWidth: '46%',
+    minHeight: 32,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  environmentBadgeCompact: { paddingHorizontal: 8 },
+  environment: { fontSize: 11, fontWeight: '500' },
+  environmentCompact: { fontSize: 10 },
   content: { flex: 1 },
-  home: { padding: 22 },
-  homeTitle: { fontSize: 28, fontWeight: '800', marginVertical: 18 },
+  home: { paddingTop: 28, paddingBottom: 28 },
+  homeInner: { width: '100%', maxWidth: 960, alignSelf: 'center' },
+  homeTitle: {
+    fontSize: 28,
+    lineHeight: 36,
+    fontWeight: '600',
+    letterSpacing: -0.4,
+    marginBottom: 20,
+  },
   cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   card: {
-    width: '47%',
-    minHeight: 112,
+    minHeight: 126,
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    padding: 14,
     justifyContent: 'space-between',
+    shadowColor: '#101828',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
-  cardTitle: { fontSize: 16, fontWeight: '700' },
-  cardArrow: { fontSize: 25, alignSelf: 'flex-end' },
-  disclosure: { fontSize: 12, lineHeight: 18, marginTop: 28 },
-  menuBar: { maxHeight: 74, borderTopWidth: StyleSheet.hairlineWidth },
-  menu: { paddingHorizontal: 10, paddingTop: 8, alignItems: 'center' },
-  menuButton: { minWidth: 72, paddingHorizontal: 10, alignItems: 'center' },
-  menuDot: { height: 10, fontSize: 8, lineHeight: 10, marginBottom: 2 },
-  menuLabel: { fontSize: 12, fontWeight: '700' },
+  cardPressed: { opacity: 0.82 },
+  cardIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardIconText: { fontSize: 22, lineHeight: 26, fontWeight: '500' },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  cardTitle: { flex: 1, fontSize: 15, fontWeight: '600' },
+  cardArrow: { fontSize: 22, lineHeight: 24 },
+  disclosureBox: {
+    minHeight: 58,
+    marginTop: 20,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  disclosureIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  disclosureIconText: { fontSize: 15, fontWeight: '700' },
+  disclosure: { flex: 1, fontSize: 12, lineHeight: 18 },
+  menuBar: {
+    minHeight: 66,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+  },
+  menuButton: {
+    flex: 1,
+    minWidth: 60,
+    minHeight: 58,
+    paddingHorizontal: 4,
+    paddingTop: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeIndicator: {
+    position: 'absolute',
+    top: 0,
+    left: '22%',
+    right: '22%',
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'transparent',
+  },
+  menuPressed: { opacity: 0.65 },
+  menuGlyph: { fontSize: 20, lineHeight: 22, fontWeight: '500' },
+  menuLabel: { fontSize: 11, lineHeight: 16, fontWeight: '600', marginTop: 2 },
+  modalRoot: { flex: 1, justifyContent: 'flex-end' },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(16, 24, 40, 0.42)',
+  },
+  moreSheet: {
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingTop: 10,
+    paddingHorizontal: 20,
+    shadowColor: '#101828',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+  sheetTitle: { fontSize: 20, lineHeight: 26, fontWeight: '600' },
+  moreList: { marginTop: 14, gap: 8 },
+  moreItem: {
+    minHeight: 58,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  moreItemPressed: { opacity: 0.7 },
+  moreIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  moreIconText: { fontSize: 18, lineHeight: 21, fontWeight: '500' },
+  moreLabel: { flex: 1, fontSize: 15, fontWeight: '600' },
+  moreArrow: { fontSize: 22 },
 });

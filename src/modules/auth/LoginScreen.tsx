@@ -22,12 +22,15 @@ export function LoginScreen(): React.JSX.Element {
     <ScrollView
       style={styles.root}
       contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
     >
       <View style={styles.introduction}>
         <Text style={styles.eyebrow}>
           {services.i18n.t('auth.login.eyebrow')}
         </Text>
-        <Text style={styles.title}>{title}</Text>
+        <Text accessibilityRole="header" style={styles.title}>
+          {title}
+        </Text>
         <Text style={styles.description}>
           {services.i18n.t('auth.login.description')}
         </Text>
@@ -90,67 +93,88 @@ function createStyles(theme: ThemeTokens) {
       flexGrow: 1,
       justifyContent: 'center',
       padding: theme.spacing.lg,
+      paddingVertical: theme.spacing.xl,
     },
-    introduction: { width: '100%', maxWidth: 520, alignSelf: 'center' },
+    introduction: { width: '100%', maxWidth: 480, alignSelf: 'center' },
     eyebrow: {
       color: colors.primary,
-      fontSize: 13,
-      fontWeight: '700',
-      letterSpacing: 1.2,
-      marginBottom: 10,
+      fontSize: 12,
+      fontWeight: '600',
+      letterSpacing: 0.8,
+      marginBottom: theme.spacing.sm,
     },
     title: {
       color: colors.text,
-      fontSize: theme.typography.titleSize,
-      fontWeight: '800',
-      marginBottom: 12,
+      fontSize: Math.min(theme.typography.titleSize, 30),
+      fontWeight: '600',
+      letterSpacing: -0.4,
+      marginBottom: theme.spacing.sm,
     },
     description: {
       color: colors.textMuted,
-      fontSize: theme.typography.bodySize,
-      lineHeight: 24,
+      fontSize: Math.min(theme.typography.bodySize, 15),
+      lineHeight: 23,
     },
     primaryButton: {
-      alignSelf: 'flex-start',
-      borderRadius: theme.radius.md,
-      marginTop: 28,
-      paddingHorizontal: 20,
-      paddingVertical: 13,
+      width: '100%',
+      minHeight: 46,
+      borderRadius: 8,
+      marginTop: theme.spacing.lg,
+      paddingHorizontal: theme.spacing.md,
+      alignItems: 'center',
+      justifyContent: 'center',
       backgroundColor: colors.primary,
     },
-    primaryButtonText: { color: '#FFFFFF', fontWeight: '700' },
+    primaryButtonText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '600',
+    },
     buttonPressed: { backgroundColor: colors.primaryPressed },
     loginOptions: {
       width: '100%',
-      maxWidth: 520,
+      maxWidth: 480,
       alignSelf: 'center',
       marginTop: theme.spacing.xl,
     },
     optionsTitle: {
       color: colors.textMuted,
       fontSize: 13,
-      fontWeight: '700',
-      marginBottom: theme.spacing.sm,
+      fontWeight: '600',
+      marginBottom: 10,
     },
     option: {
-      minHeight: 82,
+      minHeight: 72,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: theme.radius.md,
+      borderRadius: 12,
       backgroundColor: colors.surface,
       flexDirection: 'row',
       alignItems: 'center',
       padding: theme.spacing.md,
+      marginBottom: 10,
     },
-    optionPressed: { borderColor: colors.primary, opacity: 0.82 },
+    optionPressed: {
+      borderColor: colors.primary,
+      backgroundColor: colors.background,
+    },
     optionCopy: { flex: 1, paddingRight: theme.spacing.md },
-    optionTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
+    optionTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
     optionDescription: {
       color: colors.textMuted,
-      fontSize: 12,
-      lineHeight: 18,
+      fontSize: 13,
+      lineHeight: 19,
       marginTop: theme.spacing.xs,
     },
-    optionArrow: { color: colors.primary, fontSize: 24 },
+    optionArrow: {
+      width: 28,
+      height: 28,
+      borderRadius: 7,
+      color: colors.primary,
+      backgroundColor: colors.background,
+      fontSize: 18,
+      lineHeight: 27,
+      textAlign: 'center',
+    },
   });
 }

@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useAppNavigation, useRouteParams } from '../../app/navigation';
@@ -35,12 +36,19 @@ export function createCommerceScreens(
     const { brand, services } = useApplication();
     const navigate = useAppNavigation();
     const snapshot = useCart(cart);
+    const { width } = useWindowDimensions();
     const [products, setProducts] = useState(demoProducts);
     const [refreshing, setRefreshing] = useState(false);
     const [notice, setNotice] = useState(
       '当前展示示例商品，下拉可同步服务端目录',
     );
     const colors = brand.theme.colors;
+    const columns = width >= 768 ? 3 : 2;
+    const listWidth = Math.min(width, 1080);
+    const listPadding = width >= 768 ? 32 : 20;
+    const productGap = 12;
+    const productCardWidth =
+      (listWidth - listPadding * 2 - productGap * (columns - 1)) / columns;
 
     const refresh = async (): Promise<void> => {
       setRefreshing(true);
@@ -63,29 +71,62 @@ export function createCommerceScreens(
             <Text style={[styles.eyebrow, { color: colors.primary }]}>
               精选商城
             </Text>
-            <Text style={[styles.title, { color: colors.text }]}>发现好物</Text>
+            <Text
+              accessibilityRole="header"
+              style={[styles.title, { color: colors.text }]}
+            >
+              发现好物
+            </Text>
           </View>
           <Pressable
+            accessibilityLabel={`购物车，${snapshot.itemCount} 件商品`}
             accessibilityRole="button"
             onPress={() => navigate('CommerceCart')}
-            style={[styles.cartPill, { backgroundColor: colors.primary }]}
+            style={({ pressed }) => [
+              styles.cartPill,
+              {
+                backgroundColor: pressed
+                  ? colors.primaryPressed
+                  : colors.primary,
+              },
+            ]}
           >
             <Text style={styles.cartPillText}>购物车 {snapshot.itemCount}</Text>
           </Pressable>
         </View>
-        <Text style={[styles.notice, { color: colors.textMuted }]}>
-          {notice}
-        </Text>
+        <View
+          style={[
+            styles.noticePanel,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[styles.notice, { color: colors.textMuted }]}
+          >
+            {notice}
+          </Text>
+        </View>
         <FlatList
+          key={`product-grid-${columns}`}
           data={products}
           keyExtractor={product => product.id}
-          numColumns={2}
+          numColumns={columns}
+          style={styles.productListContainer}
           columnWrapperStyle={styles.productRow}
-          contentContainerStyle={styles.productList}
+          contentContainerStyle={[
+            styles.productList,
+            { paddingHorizontal: listPadding },
+          ]}
           refreshing={refreshing}
           onRefresh={refresh}
           renderItem={({ item }) => (
             <Pressable
+              accessibilityLabel={`${item.name}，${formatMoney(
+                item.priceMinor,
+                item.currency,
+              )}`}
+              accessibilityHint="查看商品详情"
               accessibilityRole="button"
               onPress={() =>
                 navigate('CommerceProductDetail', { productId: item.id })
@@ -93,15 +134,13 @@ export function createCommerceScreens(
               style={({ pressed }) => [
                 styles.productCard,
                 {
+                  width: productCardWidth,
                   backgroundColor: colors.surface,
                   borderColor: pressed ? colors.primary : colors.border,
                 },
               ]}
             >
-              <Image
-                source={{ uri: item.imageUrl }}
-                style={styles.productImage}
-              />
+              <ProductImage product={item} variant="card" />
               <Text style={[styles.productCategory, { color: colors.primary }]}>
                 {item.category}
               </Text>
@@ -153,7 +192,12 @@ export function createCommerceScreens(
 
     if (loading) {
       return (
-        <ActivityIndicator style={styles.loading} color={colors.primary} />
+        <ActivityIndicator
+          accessibilityLabel="正在加载商品"
+          accessibilityRole="progressbar"
+          style={styles.loading}
+          color={colors.primary}
+        />
       );
     }
     if (!product) {
@@ -179,16 +223,24 @@ export function createCommerceScreens(
         style={{ backgroundColor: colors.background }}
         contentContainerStyle={styles.detailContent}
       >
-        <Pressable onPress={() => navigate('CommerceProducts')}>
+        <Pressable
+          accessibilityLabel="返回商品列表"
+          accessibilityRole="button"
+          onPress={() => navigate('CommerceProducts')}
+          style={styles.backButton}
+        >
           <Text style={[styles.back, { color: colors.primary }]}>
             ← 返回商品列表
           </Text>
         </Pressable>
-        <Image source={{ uri: product.imageUrl }} style={styles.detailImage} />
+        <ProductImage product={product} variant="detail" />
         <Text style={[styles.productCategory, { color: colors.primary }]}>
           {product.category}
         </Text>
-        <Text style={[styles.detailTitle, { color: colors.text }]}>
+        <Text
+          accessibilityRole="header"
+          style={[styles.detailTitle, { color: colors.text }]}
+        >
           {product.name}
         </Text>
         <Text style={[styles.detailSubtitle, { color: colors.textMuted }]}>
@@ -235,8 +287,19 @@ export function createCommerceScreens(
     return (
       <View style={[styles.screen, { backgroundColor: colors.background }]}>
         <ScrollView contentContainerStyle={styles.cartContent}>
-          <Text style={[styles.title, { color: colors.text }]}>购物车</Text>
-          <Text style={[styles.notice, { color: colors.textMuted }]}>
+          <Text
+            accessibilityRole="header"
+            style={[styles.title, { color: colors.text }]}
+          >
+            购物车
+          </Text>
+          <Text
+            style={[
+              styles.notice,
+              styles.cartNotice,
+              { color: colors.textMuted },
+            ]}
+          >
             共 {snapshot.itemCount} 件商品
           </Text>
           {snapshot.lines.map(line => (
@@ -247,10 +310,7 @@ export function createCommerceScreens(
                 { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
             >
-              <Image
-                source={{ uri: line.product.imageUrl }}
-                style={styles.cartImage}
-              />
+              <ProductImage product={line.product} variant="cart" />
               <View style={styles.cartLineCopy}>
                 <Text style={[styles.cartLineName, { color: colors.text }]}>
                   {line.product.name}
@@ -261,15 +321,20 @@ export function createCommerceScreens(
                 <View style={styles.quantityRow}>
                   <QuantityButton
                     label="−"
+                    accessibilityLabel={`减少 ${line.product.name} 的数量`}
                     onPress={() =>
                       cart.setQuantity(line.product, line.quantity - 1)
                     }
                   />
-                  <Text style={[styles.quantity, { color: colors.text }]}>
+                  <Text
+                    accessibilityLabel={`数量 ${line.quantity}`}
+                    style={[styles.quantity, { color: colors.text }]}
+                  >
                     {line.quantity}
                   </Text>
                   <QuantityButton
                     label="+"
+                    accessibilityLabel={`增加 ${line.product.name} 的数量`}
                     onPress={() =>
                       cart.setQuantity(line.product, line.quantity + 1)
                     }
@@ -279,7 +344,15 @@ export function createCommerceScreens(
             </View>
           ))}
         </ScrollView>
-        <View style={[styles.cartFooter, { backgroundColor: colors.surface }]}>
+        <View
+          style={[
+            styles.cartFooter,
+            {
+              backgroundColor: colors.surface,
+              borderTopColor: colors.border,
+            },
+          ]}
+        >
           <View>
             <Text style={[styles.totalLabel, { color: colors.textMuted }]}>
               合计
@@ -403,13 +476,28 @@ export function createCommerceScreens(
         style={{ backgroundColor: colors.background }}
         contentContainerStyle={styles.checkoutContent}
       >
-        <Pressable onPress={() => navigate('CommerceCart')}>
+        <Pressable
+          accessibilityLabel="返回购物车"
+          accessibilityRole="button"
+          onPress={() => navigate('CommerceCart')}
+          style={styles.backButton}
+        >
           <Text style={[styles.back, { color: colors.primary }]}>
             ← 返回购物车
           </Text>
         </Pressable>
-        <Text style={[styles.title, { color: colors.text }]}>确认订单</Text>
-        <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+        <Text
+          accessibilityRole="header"
+          style={[styles.title, { color: colors.text }]}
+        >
+          确认订单
+        </Text>
+        <View
+          style={[
+            styles.summaryCard,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
           <SummaryRow label="商品数量" value={`${snapshot.itemCount} 件`} />
           <SummaryRow
             label="应付金额"
@@ -427,6 +515,9 @@ export function createCommerceScreens(
         </Text>
         {providers.map(item => (
           <Pressable
+            accessibilityLabel={item === 'wechat' ? '微信支付' : '支付宝支付'}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: provider === item, disabled: busy }}
             key={item}
             disabled={busy}
             onPress={() => setProvider(item)}
@@ -436,6 +527,7 @@ export function createCommerceScreens(
                 backgroundColor: colors.surface,
                 borderColor: provider === item ? colors.primary : colors.border,
               },
+              busy && styles.providerDisabled,
             ]}
           >
             <View
@@ -458,6 +550,8 @@ export function createCommerceScreens(
         ))}
         {message ? (
           <Text
+            accessibilityLiveRegion="polite"
+            accessibilityRole={phase === 'failed' ? 'alert' : undefined}
             style={[
               styles.paymentMessage,
               { color: phase === 'failed' ? colors.danger : colors.textMuted },
@@ -477,6 +571,9 @@ export function createCommerceScreens(
         />
         {paymentId && phase !== 'creating' ? (
           <Pressable
+            accessibilityLabel="查询支付结果"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: busy }}
             disabled={busy}
             onPress={checkPayment}
             style={styles.checkButton}
@@ -527,6 +624,70 @@ function toPaymentErrorMessage(error: unknown): string {
   return '暂时无法发起支付，请稍后重试。';
 }
 
+function ProductImage({
+  product,
+  variant,
+}: {
+  product: Product;
+  variant: 'card' | 'detail' | 'cart';
+}): React.JSX.Element {
+  const { brand } = useApplication();
+  const [failed, setFailed] = useState(false);
+  const colors = brand.theme.colors;
+  const imageStyle =
+    variant === 'detail'
+      ? styles.detailImage
+      : variant === 'cart'
+      ? styles.cartImage
+      : styles.productImage;
+  const compact = variant === 'cart';
+
+  if (failed) {
+    return (
+      <View
+        accessible
+        accessibilityLabel={`${product.name} 图片加载失败`}
+        accessibilityRole="image"
+        style={[
+          imageStyle,
+          styles.imageFallback,
+          { backgroundColor: colors.background, borderColor: colors.border },
+        ]}
+      >
+        {compact ? null : (
+          <Text
+            numberOfLines={1}
+            style={[styles.imageFallbackCategory, { color: colors.primary }]}
+          >
+            {product.category}
+          </Text>
+        )}
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.imageFallbackText,
+            compact && styles.imageFallbackTextCompact,
+            { color: colors.textMuted },
+          ]}
+        >
+          {compact ? '暂无图片' : '图片暂不可用'}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      accessibilityLabel={`${product.name} 商品图片`}
+      accessibilityRole="image"
+      onError={() => setFailed(true)}
+      resizeMode="cover"
+      source={{ uri: product.imageUrl }}
+      style={imageStyle}
+    />
+  );
+}
+
 function PrimaryButton({
   label,
   onPress,
@@ -542,7 +703,9 @@ function PrimaryButton({
   const colors = brand.theme.colors;
   return (
     <Pressable
+      accessibilityLabel={label}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
@@ -554,34 +717,49 @@ function PrimaryButton({
             : pressed
             ? colors.primaryPressed
             : colors.primary,
+          opacity: disabled ? 0.75 : 1,
         },
       ]}
     >
-      <Text style={styles.primaryButtonText}>{label}</Text>
+      <Text
+        style={[
+          styles.primaryButtonText,
+          disabled
+            ? { color: colors.textMuted }
+            : styles.primaryButtonTextEnabled,
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
 function QuantityButton({
   label,
+  accessibilityLabel,
   onPress,
 }: {
   label: string;
+  accessibilityLabel: string;
   onPress(): void;
 }): React.JSX.Element {
   const { brand } = useApplication();
+  const colors = brand.theme.colors;
   return (
     <Pressable
+      accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         styles.quantityButton,
-        { borderColor: brand.theme.colors.border },
+        {
+          backgroundColor: pressed ? colors.background : colors.surface,
+          borderColor: pressed ? colors.primary : colors.border,
+        },
       ]}
     >
-      <Text
-        style={[styles.quantityButtonText, { color: brand.theme.colors.text }]}
-      >
+      <Text style={[styles.quantityButtonText, { color: colors.text }]}>
         {label}
       </Text>
     </Pressable>
@@ -636,6 +814,7 @@ function EmptyState({
   return (
     <View style={[styles.empty, { backgroundColor: colors.background }]}>
       <Text
+        accessible={false}
         style={[
           styles.emptyIcon,
           { color: success ? colors.success : colors.primary },
@@ -643,7 +822,12 @@ function EmptyState({
       >
         {success ? '✓' : '◇'}
       </Text>
-      <Text style={[styles.emptyTitle, { color: colors.text }]}>{title}</Text>
+      <Text
+        accessibilityRole="header"
+        style={[styles.emptyTitle, { color: colors.text }]}
+      >
+        {title}
+      </Text>
       {description ? (
         <Text style={[styles.emptyDescription, { color: colors.textMuted }]}>
           {description}
@@ -659,149 +843,213 @@ const styles = StyleSheet.create({
   loading: { flex: 1 },
   pageHeader: {
     paddingHorizontal: 20,
-    paddingTop: 22,
+    paddingTop: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   eyebrow: {
     fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    marginBottom: 5,
+    fontWeight: '600',
+    letterSpacing: 0.7,
+    marginBottom: 6,
   },
-  title: { fontSize: 28, fontWeight: '900' },
-  notice: { fontSize: 12, marginHorizontal: 20, marginTop: 8 },
-  cartPill: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 18 },
-  cartPillText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
-  productList: { padding: 14, paddingBottom: 30 },
-  productRow: { gap: 10 },
+  title: { fontSize: 28, lineHeight: 36, fontWeight: '600' },
+  noticePanel: {
+    minHeight: 40,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+    marginHorizontal: 20,
+    marginTop: 14,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
+  notice: { fontSize: 12, lineHeight: 18 },
+  cartNotice: { marginTop: 6 },
+  cartPill: {
+    minHeight: 40,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartPillText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  productListContainer: {
+    width: '100%',
+    maxWidth: 1080,
+    alignSelf: 'center',
+  },
+  productList: { paddingTop: 16, paddingBottom: 32 },
+  productRow: { gap: 12 },
   productCard: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 10,
-    marginBottom: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
   },
   productImage: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: 11,
-    backgroundColor: '#E9EBF1',
+    borderRadius: 8,
+    backgroundColor: '#F0F2F5',
   },
-  productCategory: { fontSize: 11, fontWeight: '800', marginTop: 10 },
+  imageFallback: {
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+  },
+  imageFallbackCategory: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '600',
+    marginBottom: 3,
+    textAlign: 'center',
+  },
+  imageFallbackText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  imageFallbackTextCompact: { fontSize: 10, lineHeight: 14 },
+  productCategory: { fontSize: 11, fontWeight: '600', marginTop: 10 },
   productName: {
     fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '800',
+    lineHeight: 21,
+    fontWeight: '600',
     marginTop: 4,
-    minHeight: 40,
+    minHeight: 42,
   },
-  price: { fontSize: 14, fontWeight: '900', marginTop: 7 },
-  detailContent: { padding: 20, paddingBottom: 42 },
-  back: { fontSize: 14, fontWeight: '800', marginBottom: 18 },
+  price: { fontSize: 15, fontWeight: '600', marginTop: 8 },
+  detailContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 44 },
+  backButton: {
+    minHeight: 40,
+    alignSelf: 'flex-start',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  back: { fontSize: 14, fontWeight: '600' },
   detailImage: {
     width: '100%',
     aspectRatio: 1.3,
-    borderRadius: 20,
-    backgroundColor: '#E9EBF1',
+    borderRadius: 12,
+    backgroundColor: '#F0F2F5',
   },
-  detailTitle: { fontSize: 27, fontWeight: '900', marginTop: 8 },
-  detailSubtitle: { fontSize: 14, marginTop: 6 },
-  detailPrice: { fontSize: 24, fontWeight: '900', marginTop: 16 },
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: 22 },
+  detailTitle: {
+    fontSize: 26,
+    lineHeight: 34,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  detailSubtitle: { fontSize: 14, lineHeight: 21, marginTop: 6 },
+  detailPrice: { fontSize: 24, fontWeight: '600', marginTop: 16 },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: 24 },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    marginTop: 20,
+    fontSize: 17,
+    fontWeight: '600',
     marginBottom: 10,
   },
   description: { fontSize: 15, lineHeight: 24 },
-  stock: { fontSize: 12, marginTop: 14 },
+  stock: { fontSize: 12, fontWeight: '500', marginTop: 14 },
   primaryButton: {
-    borderRadius: 14,
+    minHeight: 44,
+    borderRadius: 8,
     marginTop: 24,
-    paddingHorizontal: 22,
-    paddingVertical: 15,
+    paddingHorizontal: 20,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   compactButton: { marginTop: 0, minWidth: 122 },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  primaryButtonText: { fontSize: 14, fontWeight: '600' },
+  primaryButtonTextEnabled: { color: '#FFFFFF' },
   cartContent: { padding: 20, paddingBottom: 30 },
   cartLine: {
-    borderWidth: 1,
-    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
     padding: 12,
     flexDirection: 'row',
     marginTop: 12,
   },
   cartImage: {
-    width: 92,
-    height: 92,
-    borderRadius: 12,
-    backgroundColor: '#E9EBF1',
+    width: 88,
+    height: 88,
+    borderRadius: 8,
+    backgroundColor: '#F0F2F5',
   },
-  cartLineCopy: { flex: 1, marginLeft: 13 },
-  cartLineName: { fontSize: 15, fontWeight: '800' },
-  quantityRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+  cartLineCopy: { flex: 1, marginLeft: 14 },
+  cartLineName: { fontSize: 15, lineHeight: 21, fontWeight: '600' },
+  quantityRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
   quantityButton: {
-    width: 30,
-    height: 30,
-    borderWidth: 1,
-    borderRadius: 9,
+    width: 40,
+    height: 40,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  quantityButtonText: { fontSize: 18, fontWeight: '700' },
-  quantity: { width: 36, textAlign: 'center', fontWeight: '800' },
+  quantityButtonText: { fontSize: 18, fontWeight: '500' },
+  quantity: { width: 40, textAlign: 'center', fontSize: 14, fontWeight: '600' },
   cartFooter: {
+    borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  totalLabel: { fontSize: 11 },
-  total: { fontSize: 22, fontWeight: '900', marginTop: 2 },
-  checkoutContent: { padding: 20, paddingBottom: 40 },
-  summaryCard: { borderRadius: 16, padding: 16, marginTop: 18 },
+  totalLabel: { fontSize: 12 },
+  total: { fontSize: 22, fontWeight: '600', marginTop: 2 },
+  checkoutContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 },
+  summaryCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginTop: 20,
+  },
   summaryRow: {
+    minHeight: 40,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 7,
   },
   summaryLabel: { fontSize: 14 },
-  summaryValue: { fontSize: 14, fontWeight: '700' },
-  summaryValueStrong: { fontSize: 20, fontWeight: '900' },
+  summaryValue: { fontSize: 14, fontWeight: '500' },
+  summaryValueStrong: { fontSize: 20, fontWeight: '600' },
   provider: {
-    borderWidth: 1,
-    borderRadius: 15,
-    padding: 14,
+    minHeight: 60,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
   },
+  providerDisabled: { opacity: 0.55 },
   providerIcon: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   wechatIcon: { backgroundColor: '#07C160' },
   alipayIcon: { backgroundColor: '#1677FF' },
-  providerIconText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
-  providerName: { flex: 1, fontSize: 16, fontWeight: '800', marginLeft: 12 },
+  providerIconText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  providerName: { flex: 1, fontSize: 15, fontWeight: '600', marginLeft: 12 },
   radio: { fontSize: 18 },
   paymentMessage: { fontSize: 13, lineHeight: 20, marginTop: 8 },
-  checkButton: { padding: 15, alignItems: 'center' },
-  checkButtonText: { fontSize: 14, fontWeight: '800' },
+  checkButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkButtonText: { fontSize: 14, fontWeight: '600' },
   securityNote: {
-    fontSize: 11,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 19,
     marginTop: 18,
-    textAlign: 'center',
   },
   empty: {
     flex: 1,
@@ -809,8 +1057,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyIcon: { fontSize: 52, fontWeight: '300', marginBottom: 12 },
-  emptyTitle: { fontSize: 24, fontWeight: '900', textAlign: 'center' },
+  emptyIcon: { fontSize: 42, fontWeight: '300', marginBottom: 12 },
+  emptyTitle: {
+    fontSize: 22,
+    lineHeight: 30,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   emptyDescription: {
     fontSize: 14,
     lineHeight: 21,
