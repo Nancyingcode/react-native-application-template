@@ -15,7 +15,7 @@ import { useAppNavigation, useRouteParams } from '../../app/navigation';
 import { useApplication } from '../../app/ApplicationProvider';
 import { AuthenticationRequiredError } from '../../core/http';
 import { CartStore, useCart } from './CartStore';
-import { demoProducts, formatMoney } from './catalog';
+import { formatMoney, getDemoProducts, isDemoProduct } from './catalog';
 import { PaymentLaunchError, PaymentLauncher } from './payment';
 import { CommerceRepository } from './repository';
 import type { PaymentProvider, PaymentStatus, Product } from './types';
@@ -33,15 +33,15 @@ export function createCommerceScreens(
   paymentLauncher: PaymentLauncher,
 ): CommerceScreens {
   function ProductListScreen(): React.JSX.Element {
-    const { brand, services } = useApplication();
+    const { brand, locale, services } = useApplication();
     const navigate = useAppNavigation();
     const snapshot = useCart(cart);
     const { width } = useWindowDimensions();
-    const [products, setProducts] = useState(demoProducts);
+    const demoProducts = getDemoProducts(services.i18n.t.bind(services.i18n));
+    const [remoteProducts, setRemoteProducts] = useState<Product[]>();
     const [refreshing, setRefreshing] = useState(false);
-    const [notice, setNotice] = useState(
-      '当前展示示例商品，下拉可同步服务端目录',
-    );
+    const [noticeKey, setNoticeKey] = useState('commerce.products.notice.demo');
+    const products = remoteProducts ?? demoProducts;
     const colors = brand.theme.colors;
     const columns = width >= 768 ? 3 : 2;
     const listWidth = Math.min(width, 1080);
@@ -53,12 +53,12 @@ export function createCommerceScreens(
     const refresh = async (): Promise<void> => {
       setRefreshing(true);
       try {
-        const remoteProducts = await repository.listProducts();
-        setProducts(remoteProducts);
-        setNotice('商品目录已更新');
+        const fetchedProducts = await repository.listProducts();
+        setRemoteProducts(fetchedProducts);
+        setNoticeKey('commerce.products.notice.updated');
       } catch (error) {
         services.monitor.capture(error, { scope: 'commerce.products' });
-        setNotice('暂时无法同步，已保留本地商品目录');
+        setNoticeKey('commerce.products.notice.syncFailed');
       } finally {
         setRefreshing(false);
       }
@@ -67,19 +67,22 @@ export function createCommerceScreens(
     return (
       <View style={[styles.screen, { backgroundColor: colors.background }]}>
         <View style={styles.pageHeader}>
-          <View>
+          <View style={styles.pageHeaderCopy}>
             <Text style={[styles.eyebrow, { color: colors.primary }]}>
-              精选商城
+              {services.i18n.t('commerce.products.eyebrow')}
             </Text>
             <Text
               accessibilityRole="header"
               style={[styles.title, { color: colors.text }]}
             >
-              发现好物
+              {services.i18n.t('commerce.products.title')}
             </Text>
           </View>
           <Pressable
-            accessibilityLabel={`购物车，${snapshot.itemCount} 件商品`}
+            accessibilityLabel={services.i18n.t(
+              'commerce.products.cart.accessibilityLabel',
+              { count: snapshot.itemCount },
+            )}
             accessibilityRole="button"
             onPress={() => navigate('CommerceCart')}
             style={({ pressed }) => [
@@ -91,7 +94,11 @@ export function createCommerceScreens(
               },
             ]}
           >
-            <Text style={styles.cartPillText}>购物车 {snapshot.itemCount}</Text>
+            <Text style={styles.cartPillText}>
+              {services.i18n.t('commerce.products.cart.label', {
+                count: snapshot.itemCount,
+              })}
+            </Text>
           </Pressable>
         </View>
         <View
@@ -104,7 +111,7 @@ export function createCommerceScreens(
             accessibilityLiveRegion="polite"
             style={[styles.notice, { color: colors.textMuted }]}
           >
-            {notice}
+            {services.i18n.t(noticeKey)}
           </Text>
         </View>
         <FlatList
@@ -122,14 +129,22 @@ export function createCommerceScreens(
           onRefresh={refresh}
           renderItem={({ item }) => (
             <Pressable
-              accessibilityLabel={`${item.name}，${formatMoney(
-                item.priceMinor,
-                item.currency,
-              )}`}
-              accessibilityHint="查看商品详情"
+              accessibilityLabel={services.i18n.t(
+                'commerce.products.item.accessibilityLabel',
+                {
+                  name: item.name,
+                  price: formatMoney(item.priceMinor, item.currency, locale),
+                },
+              )}
+              accessibilityHint={services.i18n.t(
+                'commerce.products.item.accessibilityHint',
+              )}
               accessibilityRole="button"
               onPress={() =>
-                navigate('CommerceProductDetail', { productId: item.id })
+                navigate('CommerceProductDetail', {
+                  productId: item.id,
+                  source: remoteProducts ? 'remote' : 'demo',
+                })
               }
               style={({ pressed }) => [
                 styles.productCard,
@@ -151,7 +166,7 @@ export function createCommerceScreens(
                 {item.name}
               </Text>
               <Text style={[styles.price, { color: colors.text }]}>
-                {formatMoney(item.priceMinor, item.currency)}
+                {formatMoney(item.priceMinor, item.currency, locale)}
               </Text>
             </Pressable>
           )}
@@ -164,23 +179,29 @@ export function createCommerceScreens(
   }
 
   function ProductDetailScreen(): React.JSX.Element {
-    const { brand, services } = useApplication();
+    const { brand, locale, services } = useApplication();
     const navigate = useAppNavigation();
-    const { productId } = useRouteParams();
-    const initialProduct = demoProducts.find(item => item.id === productId);
-    const [product, setProduct] = useState<Product | undefined>(initialProduct);
-    const [loading, setLoading] = useState(!initialProduct);
+    const { productId, source } = useRouteParams();
+    const demoProduct =
+      source === 'remote'
+        ? undefined
+        : getDemoProducts(services.i18n.t.bind(services.i18n)).find(
+            item => item.id === productId,
+          );
+    const [remoteProduct, setRemoteProduct] = useState<Product>();
+    const [loading, setLoading] = useState(!demoProduct);
     const [added, setAdded] = useState(false);
+    const product = demoProduct ?? remoteProduct;
     const colors = brand.theme.colors;
 
     useEffect(() => {
-      if (initialProduct || !productId) {
+      if (demoProduct || !productId) {
         return;
       }
       let active = true;
       repository
         .getProduct(productId)
-        .then(item => active && setProduct(item))
+        .then(item => active && setRemoteProduct(item))
         .catch(error =>
           services.monitor.capture(error, { scope: 'commerce.product' }),
         )
@@ -188,12 +209,14 @@ export function createCommerceScreens(
       return () => {
         active = false;
       };
-    }, [initialProduct, productId, services.monitor]);
+    }, [demoProduct, productId, services.monitor]);
 
     if (loading) {
       return (
         <ActivityIndicator
-          accessibilityLabel="正在加载商品"
+          accessibilityLabel={services.i18n.t(
+            'commerce.detail.loading.accessibilityLabel',
+          )}
           accessibilityRole="progressbar"
           style={styles.loading}
           color={colors.primary}
@@ -203,8 +226,8 @@ export function createCommerceScreens(
     if (!product) {
       return (
         <EmptyState
-          title="商品不存在或已下架"
-          action="返回商品列表"
+          title={services.i18n.t('commerce.detail.notFound.title')}
+          action={services.i18n.t('commerce.detail.backToProducts')}
           onAction={() => navigate('CommerceProducts')}
         />
       );
@@ -224,13 +247,13 @@ export function createCommerceScreens(
         contentContainerStyle={styles.detailContent}
       >
         <Pressable
-          accessibilityLabel="返回商品列表"
+          accessibilityLabel={services.i18n.t('commerce.detail.backToProducts')}
           accessibilityRole="button"
           onPress={() => navigate('CommerceProducts')}
           style={styles.backButton}
         >
           <Text style={[styles.back, { color: colors.primary }]}>
-            ← 返回商品列表
+            ← {services.i18n.t('commerce.detail.backToProducts')}
           </Text>
         </Pressable>
         <ProductImage product={product} variant="detail" />
@@ -247,20 +270,24 @@ export function createCommerceScreens(
           {product.subtitle}
         </Text>
         <Text style={[styles.detailPrice, { color: colors.text }]}>
-          {formatMoney(product.priceMinor, product.currency)}
+          {formatMoney(product.priceMinor, product.currency, locale)}
         </Text>
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          商品介绍
+          {services.i18n.t('commerce.detail.descriptionTitle')}
         </Text>
         <Text style={[styles.description, { color: colors.textMuted }]}>
           {product.description}
         </Text>
         <Text style={[styles.stock, { color: colors.textMuted }]}>
-          库存 {product.inventory} 件
+          {services.i18n.t('commerce.detail.stock', {
+            count: product.inventory,
+          })}
         </Text>
         <PrimaryButton
-          label={added ? '已加入购物车 · 去结算' : '加入购物车'}
+          label={services.i18n.t(
+            added ? 'commerce.detail.addedToCart' : 'commerce.detail.addToCart',
+          )}
           onPress={added ? () => navigate('CommerceCart') : addToCart}
         />
       </ScrollView>
@@ -268,17 +295,18 @@ export function createCommerceScreens(
   }
 
   function CartScreen(): React.JSX.Element {
-    const { brand } = useApplication();
+    const { brand, locale, services } = useApplication();
     const navigate = useAppNavigation();
     const snapshot = useCart(cart);
+    const demoProducts = getDemoProducts(services.i18n.t.bind(services.i18n));
     const colors = brand.theme.colors;
 
     if (snapshot.lines.length === 0) {
       return (
         <EmptyState
-          title="购物车还是空的"
-          description="挑选心仪商品后，它们会出现在这里。"
-          action="去逛逛"
+          title={services.i18n.t('commerce.cart.empty.title')}
+          description={services.i18n.t('commerce.cart.empty.description')}
+          action={services.i18n.t('commerce.cart.empty.action')}
           onAction={() => navigate('CommerceProducts')}
         />
       );
@@ -291,7 +319,7 @@ export function createCommerceScreens(
             accessibilityRole="header"
             style={[styles.title, { color: colors.text }]}
           >
-            购物车
+            {services.i18n.t('commerce.cart.title')}
           </Text>
           <Text
             style={[
@@ -300,49 +328,69 @@ export function createCommerceScreens(
               { color: colors.textMuted },
             ]}
           >
-            共 {snapshot.itemCount} 件商品
+            {services.i18n.t('commerce.cart.itemCount', {
+              count: snapshot.itemCount,
+            })}
           </Text>
-          {snapshot.lines.map(line => (
-            <View
-              key={line.product.id}
-              style={[
-                styles.cartLine,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-              ]}
-            >
-              <ProductImage product={line.product} variant="cart" />
-              <View style={styles.cartLineCopy}>
-                <Text style={[styles.cartLineName, { color: colors.text }]}>
-                  {line.product.name}
-                </Text>
-                <Text style={[styles.price, { color: colors.text }]}>
-                  {formatMoney(line.product.priceMinor, line.product.currency)}
-                </Text>
-                <View style={styles.quantityRow}>
-                  <QuantityButton
-                    label="−"
-                    accessibilityLabel={`减少 ${line.product.name} 的数量`}
-                    onPress={() =>
-                      cart.setQuantity(line.product, line.quantity - 1)
-                    }
-                  />
-                  <Text
-                    accessibilityLabel={`数量 ${line.quantity}`}
-                    style={[styles.quantity, { color: colors.text }]}
-                  >
-                    {line.quantity}
+          {snapshot.lines.map(line => {
+            const product = isDemoProduct(line.product)
+              ? demoProducts.find(item => item.id === line.product.id) ??
+                line.product
+              : line.product;
+            return (
+              <View
+                key={line.product.id}
+                style={[
+                  styles.cartLine,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <ProductImage product={product} variant="cart" />
+                <View style={styles.cartLineCopy}>
+                  <Text style={[styles.cartLineName, { color: colors.text }]}>
+                    {product.name}
                   </Text>
-                  <QuantityButton
-                    label="+"
-                    accessibilityLabel={`增加 ${line.product.name} 的数量`}
-                    onPress={() =>
-                      cart.setQuantity(line.product, line.quantity + 1)
-                    }
-                  />
+                  <Text style={[styles.price, { color: colors.text }]}>
+                    {formatMoney(product.priceMinor, product.currency, locale)}
+                  </Text>
+                  <View style={styles.quantityRow}>
+                    <QuantityButton
+                      label="−"
+                      accessibilityLabel={services.i18n.t(
+                        'commerce.cart.quantity.decrease',
+                        { name: product.name },
+                      )}
+                      onPress={() =>
+                        cart.setQuantity(line.product, line.quantity - 1)
+                      }
+                    />
+                    <Text
+                      accessibilityLabel={services.i18n.t(
+                        'commerce.cart.quantity.value',
+                        { count: line.quantity },
+                      )}
+                      style={[styles.quantity, { color: colors.text }]}
+                    >
+                      {line.quantity}
+                    </Text>
+                    <QuantityButton
+                      label="+"
+                      accessibilityLabel={services.i18n.t(
+                        'commerce.cart.quantity.increase',
+                        { name: product.name },
+                      )}
+                      onPress={() =>
+                        cart.setQuantity(line.product, line.quantity + 1)
+                      }
+                    />
+                  </View>
                 </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </ScrollView>
         <View
           style={[
@@ -355,17 +403,18 @@ export function createCommerceScreens(
         >
           <View>
             <Text style={[styles.totalLabel, { color: colors.textMuted }]}>
-              合计
+              {services.i18n.t('commerce.cart.total')}
             </Text>
             <Text style={[styles.total, { color: colors.text }]}>
               {formatMoney(
                 snapshot.totalMinor,
                 snapshot.lines[0].product.currency,
+                locale,
               )}
             </Text>
           </View>
           <PrimaryButton
-            label="去结算"
+            label={services.i18n.t('commerce.cart.checkout')}
             onPress={() => navigate('CommerceCheckout')}
             compact
           />
@@ -375,7 +424,7 @@ export function createCommerceScreens(
   }
 
   function CheckoutScreen(): React.JSX.Element {
-    const { brand, services } = useApplication();
+    const { brand, locale, services } = useApplication();
     const navigate = useAppNavigation();
     const snapshot = useCart(cart);
     const providers = brand.commerce?.paymentProviders ?? ['wechat', 'alipay'];
@@ -384,7 +433,7 @@ export function createCommerceScreens(
       'idle' | 'creating' | 'waiting' | 'checking' | 'succeeded' | 'failed'
     >('idle');
     const [paymentId, setPaymentId] = useState<string>();
-    const [message, setMessage] = useState('');
+    const [messageKey, setMessageKey] = useState('');
     const paymentInFlight = useRef(false);
     const statusInFlight = useRef(false);
     const colors = brand.theme.colors;
@@ -401,7 +450,7 @@ export function createCommerceScreens(
       setPhase('checking');
       try {
         const status = await repository.getPaymentStatus(paymentId);
-        applyPaymentStatus(status, setPhase, setMessage);
+        applyPaymentStatus(status, setPhase, setMessageKey);
         if (status === 'succeeded') {
           cart.clear();
           services.analytics.track('commerce_payment_succeeded', {
@@ -411,7 +460,7 @@ export function createCommerceScreens(
       } catch (error) {
         services.monitor.capture(error, { scope: 'commerce.payment.status' });
         setPhase('waiting');
-        setMessage('暂时无法确认结果，请稍后重试；请勿重复支付。');
+        setMessageKey('commerce.payment.statusCheckFailed');
       } finally {
         statusInFlight.current = false;
       }
@@ -439,20 +488,20 @@ export function createCommerceScreens(
       }
       paymentInFlight.current = true;
       setPhase('creating');
-      setMessage('正在创建安全支付订单…');
+      setMessageKey('commerce.payment.creating');
       try {
         const order = await repository.createOrder(snapshot.lines);
         const session = await repository.createPayment(order.id, provider);
         setPaymentId(session.id);
         setPhase('waiting');
-        setMessage('完成支付后请返回本应用，我们会自动确认结果。');
+        setMessageKey('commerce.payment.returnToApp');
         services.analytics.track('commerce_payment_launched', {
           provider,
         });
         await paymentLauncher.launch(session);
       } catch (error) {
         setPhase('failed');
-        setMessage(toPaymentErrorMessage(error));
+        setMessageKey(toPaymentErrorKey(error));
         services.monitor.capture(error, { scope: 'commerce.payment.launch' });
       } finally {
         paymentInFlight.current = false;
@@ -462,9 +511,9 @@ export function createCommerceScreens(
     if (phase === 'succeeded') {
       return (
         <EmptyState
-          title="支付成功"
-          description="订单已支付，我们会尽快为你安排发货。"
-          action="继续购物"
+          title={services.i18n.t('commerce.payment.success.title')}
+          description={services.i18n.t('commerce.payment.success.description')}
+          action={services.i18n.t('commerce.payment.success.action')}
           onAction={() => navigate('CommerceProducts')}
           success
         />
@@ -477,20 +526,20 @@ export function createCommerceScreens(
         contentContainerStyle={styles.checkoutContent}
       >
         <Pressable
-          accessibilityLabel="返回购物车"
+          accessibilityLabel={services.i18n.t('commerce.checkout.backToCart')}
           accessibilityRole="button"
           onPress={() => navigate('CommerceCart')}
           style={styles.backButton}
         >
           <Text style={[styles.back, { color: colors.primary }]}>
-            ← 返回购物车
+            ← {services.i18n.t('commerce.checkout.backToCart')}
           </Text>
         </Pressable>
         <Text
           accessibilityRole="header"
           style={[styles.title, { color: colors.text }]}
         >
-          确认订单
+          {services.i18n.t('commerce.checkout.title')}
         </Text>
         <View
           style={[
@@ -498,24 +547,32 @@ export function createCommerceScreens(
             { backgroundColor: colors.surface, borderColor: colors.border },
           ]}
         >
-          <SummaryRow label="商品数量" value={`${snapshot.itemCount} 件`} />
           <SummaryRow
-            label="应付金额"
+            label={services.i18n.t('commerce.checkout.itemCountLabel')}
+            value={services.i18n.t('commerce.checkout.itemCountValue', {
+              count: snapshot.itemCount,
+            })}
+          />
+          <SummaryRow
+            label={services.i18n.t('commerce.checkout.amountLabel')}
             value={formatMoney(
               snapshot.totalMinor,
               snapshot.lines[0]?.product.currency ??
                 brand.commerce?.currency ??
                 'CNY',
+              locale,
             )}
             strong
           />
         </View>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          选择支付方式
+          {services.i18n.t('commerce.checkout.paymentMethod')}
         </Text>
         {providers.map(item => (
           <Pressable
-            accessibilityLabel={item === 'wechat' ? '微信支付' : '支付宝支付'}
+            accessibilityLabel={services.i18n.t(
+              `commerce.payment.provider.${item}`,
+            )}
             accessibilityRole="radio"
             accessibilityState={{ checked: provider === item, disabled: busy }}
             key={item}
@@ -537,18 +594,18 @@ export function createCommerceScreens(
               ]}
             >
               <Text style={styles.providerIconText}>
-                {item === 'wechat' ? '微' : '支'}
+                {services.i18n.t(`commerce.payment.provider.${item}.mark`)}
               </Text>
             </View>
             <Text style={[styles.providerName, { color: colors.text }]}>
-              {item === 'wechat' ? '微信支付' : '支付宝支付'}
+              {services.i18n.t(`commerce.payment.provider.${item}`)}
             </Text>
             <Text style={[styles.radio, { color: colors.primary }]}>
               {provider === item ? '●' : '○'}
             </Text>
           </Pressable>
         ))}
-        {message ? (
+        {messageKey ? (
           <Text
             accessibilityLiveRegion="polite"
             accessibilityRole={phase === 'failed' ? 'alert' : undefined}
@@ -557,21 +614,27 @@ export function createCommerceScreens(
               { color: phase === 'failed' ? colors.danger : colors.textMuted },
             ]}
           >
-            {message}
+            {services.i18n.t(messageKey)}
           </Text>
         ) : null}
         <PrimaryButton
           label={
             busy
-              ? '处理中…'
-              : `使用${provider === 'wechat' ? '微信' : '支付宝'}支付`
+              ? services.i18n.t('commerce.payment.processing')
+              : services.i18n.t('commerce.payment.payWith', {
+                  provider: services.i18n.t(
+                    `commerce.payment.provider.${provider}.short`,
+                  ),
+                })
           }
           onPress={pay}
           disabled={busy || snapshot.lines.length === 0}
         />
         {paymentId && phase !== 'creating' ? (
           <Pressable
-            accessibilityLabel="查询支付结果"
+            accessibilityLabel={services.i18n.t(
+              'commerce.payment.check.accessibilityLabel',
+            )}
             accessibilityRole="button"
             accessibilityState={{ disabled: busy }}
             disabled={busy}
@@ -579,12 +642,12 @@ export function createCommerceScreens(
             style={styles.checkButton}
           >
             <Text style={[styles.checkButtonText, { color: colors.primary }]}>
-              我已完成支付，查询结果
+              {services.i18n.t('commerce.payment.check.label')}
             </Text>
           </Pressable>
         ) : null}
         <Text style={[styles.securityNote, { color: colors.textMuted }]}>
-          支付签名由服务端生成，客户端不会保存商户私钥。支付结果以服务端查询为准。
+          {services.i18n.t('commerce.payment.securityNote')}
         </Text>
       </ScrollView>
     );
@@ -596,32 +659,32 @@ export function createCommerceScreens(
 function applyPaymentStatus(
   status: PaymentStatus,
   setPhase: (phase: 'waiting' | 'succeeded' | 'failed') => void,
-  setMessage: (message: string) => void,
+  setMessageKey: (messageKey: string) => void,
 ): void {
   if (status === 'succeeded') {
     setPhase('succeeded');
-    setMessage('支付成功');
+    setMessageKey('commerce.payment.success.title');
   } else if (status === 'failed' || status === 'cancelled') {
     setPhase('failed');
-    setMessage(
+    setMessageKey(
       status === 'cancelled'
-        ? '支付已取消，你可以重新发起。'
-        : '支付失败，请重试。',
+        ? 'commerce.payment.cancelled'
+        : 'commerce.payment.failed',
     );
   } else {
     setPhase('waiting');
-    setMessage('支付平台仍在处理中，请稍后再次查询；请勿重复支付。');
+    setMessageKey('commerce.payment.pending');
   }
 }
 
-function toPaymentErrorMessage(error: unknown): string {
+function toPaymentErrorKey(error: unknown): string {
   if (error instanceof AuthenticationRequiredError) {
-    return '登录状态已失效，请重新登录后支付。';
+    return 'commerce.payment.error.authenticationRequired';
   }
   if (error instanceof PaymentLaunchError) {
-    return error.message;
+    return error.messageKey;
   }
-  return '暂时无法发起支付，请稍后重试。';
+  return 'commerce.payment.error.launchFailed';
 }
 
 function ProductImage({
@@ -631,7 +694,7 @@ function ProductImage({
   product: Product;
   variant: 'card' | 'detail' | 'cart';
 }): React.JSX.Element {
-  const { brand } = useApplication();
+  const { brand, services } = useApplication();
   const [failed, setFailed] = useState(false);
   const colors = brand.theme.colors;
   const imageStyle =
@@ -646,7 +709,10 @@ function ProductImage({
     return (
       <View
         accessible
-        accessibilityLabel={`${product.name} 图片加载失败`}
+        accessibilityLabel={services.i18n.t(
+          'commerce.productImage.loadFailed.accessibilityLabel',
+          { name: product.name },
+        )}
         accessibilityRole="image"
         style={[
           imageStyle,
@@ -670,7 +736,11 @@ function ProductImage({
             { color: colors.textMuted },
           ]}
         >
-          {compact ? '暂无图片' : '图片暂不可用'}
+          {services.i18n.t(
+            compact
+              ? 'commerce.productImage.unavailable.compact'
+              : 'commerce.productImage.unavailable',
+          )}
         </Text>
       </View>
     );
@@ -678,7 +748,10 @@ function ProductImage({
 
   return (
     <Image
-      accessibilityLabel={`${product.name} 商品图片`}
+      accessibilityLabel={services.i18n.t(
+        'commerce.productImage.accessibilityLabel',
+        { name: product.name },
+      )}
       accessibilityRole="image"
       onError={() => setFailed(true)}
       resizeMode="cover"
@@ -848,6 +921,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  pageHeaderCopy: { flex: 1, paddingRight: 12 },
   eyebrow: {
     fontSize: 12,
     fontWeight: '600',

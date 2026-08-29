@@ -4,7 +4,7 @@ import {
   type AnalyticsEvent,
   type AnalyticsTransport,
 } from '../src/core/telemetry';
-import type {Logger} from '../src/core/logger';
+import type { Logger } from '../src/core/logger';
 
 function createLogger(): Logger {
   return {
@@ -21,11 +21,11 @@ function createAnalytics(transport: AnalyticsTransport): AnalyticsService {
     now: () => Date.parse('2026-08-25T01:02:03.000Z'),
     createId: () => `id-${++id}`,
     context: {
-      app: {id: 'test', name: 'Test App', version: '1.0.0'},
-      device: {platform: 'test', osVersion: '1'},
+      app: { id: 'test', name: 'Test App', version: '1.0.0' },
+      device: { platform: 'test', osVersion: '1' },
       locale: 'zh-CN',
       timezone: 'Asia/Hong_Kong',
-      channel: {id: 'direct'},
+      channel: { id: 'direct' },
     },
   });
 }
@@ -33,9 +33,9 @@ function createAnalytics(transport: AnalyticsTransport): AnalyticsService {
 describe('AnalyticsService', () => {
   it('does not collect before consent', async () => {
     const send = jest.fn(async (_events: AnalyticsEvent[]) => undefined);
-    const analytics = createAnalytics({send});
+    const analytics = createAnalytics({ send });
 
-    analytics.track('order_submitted', {orderId: 'order-1'});
+    analytics.track('order_submitted', { orderId: 'order-1' });
     await analytics.flush();
 
     expect(send).not.toHaveBeenCalled();
@@ -43,13 +43,16 @@ describe('AnalyticsService', () => {
 
   it('uses a standard event envelope and redacts sensitive properties', async () => {
     const send = jest.fn(async (_events: AnalyticsEvent[]) => undefined);
-    const analytics = createAnalytics({send});
+    const analytics = createAnalytics({ send });
 
     analytics.setConsent(true);
-    analytics.identify('user-1', {email: 'person@example.test', tier: 'gold'});
+    analytics.identify('user-1', {
+      email: 'person@example.test',
+      tier: 'gold',
+    });
     analytics.screen('Portfolio', {
       source: 'menu',
-      nested: {accessToken: 'secret', visible: true},
+      nested: { accessToken: 'secret', visible: true },
     });
     await analytics.flush();
 
@@ -68,12 +71,12 @@ describe('AnalyticsService', () => {
       anonymousId: 'id-1',
       userId: 'user-1',
       context: {
-        app: {id: 'test', name: 'Test App', version: '1.0.0'},
+        app: { id: 'test', name: 'Test App', version: '1.0.0' },
         sessionId: 'id-2',
       },
       properties: {
         source: 'menu',
-        nested: {accessToken: '[REDACTED]', visible: true},
+        nested: { accessToken: '[REDACTED]', visible: true },
       },
     });
     expect(events[1].traits).toEqual({
@@ -87,16 +90,27 @@ describe('AnalyticsService', () => {
       .fn<Promise<void>, [AnalyticsEvent[]]>()
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValue(undefined);
-    const analytics = createAnalytics({send});
+    const analytics = createAnalytics({ send });
 
     analytics.setConsent(true);
-    analytics.track('trade_confirmed', {symbol: 'TEST'});
+    analytics.track('trade_confirmed', { symbol: 'TEST' });
     await expect(analytics.flush()).rejects.toThrow('offline');
     const firstBatch = send.mock.calls[0][0];
 
     await analytics.flush();
 
     expect(send.mock.calls[1][0]).toEqual(firstBatch);
+  });
+
+  it('uses the active locale for new events', async () => {
+    const send = jest.fn(async (_events: AnalyticsEvent[]) => undefined);
+    const analytics = createAnalytics({ send });
+
+    analytics.setLocale('en-US');
+    analytics.setConsent(true);
+    await analytics.flush();
+
+    expect(send.mock.calls[0][0][0].context.locale).toBe('en-US');
   });
 
   it('does not restore an in-flight batch after consent is revoked', async () => {
@@ -107,7 +121,7 @@ describe('AnalyticsService', () => {
           rejectSend = reject;
         }),
     );
-    const analytics = createAnalytics({send});
+    const analytics = createAnalytics({ send });
 
     analytics.setConsent(true);
     const flushing = analytics.flush();
@@ -127,7 +141,7 @@ describe('AnalyticsService', () => {
 describe('HttpAnalyticsTransport', () => {
   it('posts events as a batch', async () => {
     const fetcher = jest.fn(
-      async (_input: string, _init?: RequestInit) => ({ok: true}) as Response,
+      async (_input: string, _init?: RequestInit) => ({ ok: true } as Response),
     );
     const transport = new HttpAnalyticsTransport({
       endpoint: 'https://analytics.example.test/v1/events',

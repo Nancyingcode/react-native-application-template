@@ -43,6 +43,8 @@ export const qrLoginPlugin: AppModuleFactory = {
         'auth.qr.securityHint':
           '请勿扫描来源不明的二维码，工作人员不会要求你授权陌生设备',
         'auth.qr.torch': '补光灯',
+        'auth.qr.torch.on': '开',
+        'auth.qr.torch.off': '关',
         'auth.qr.demo': '开发环境：模拟扫码',
         'auth.qr.permission.title': '需要相机权限',
         'auth.qr.permission.description':
@@ -91,6 +93,8 @@ export const qrLoginPlugin: AppModuleFactory = {
         'auth.qr.securityHint':
           'Only scan a code from a trusted sign-in page. Never approve an unfamiliar device.',
         'auth.qr.torch': 'Light',
+        'auth.qr.torch.on': 'ON',
+        'auth.qr.torch.off': 'OFF',
         'auth.qr.demo': 'Development: simulate scan',
         'auth.qr.permission.title': 'Camera access required',
         'auth.qr.permission.description':

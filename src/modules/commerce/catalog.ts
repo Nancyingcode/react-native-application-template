@@ -1,13 +1,28 @@
 import type { Product } from './types';
 
-export const demoProducts: Product[] = [
+type Translate = (
+  key: string,
+  values?: Record<string, string | number>,
+) => string;
+
+interface DemoProductDefinition
+  extends Pick<
+    Product,
+    'id' | 'imageUrl' | 'priceMinor' | 'currency' | 'inventory'
+  > {
+  nameKey: string;
+  subtitleKey: string;
+  descriptionKey: string;
+  categoryKey: string;
+}
+
+const DEMO_PRODUCT_DEFINITIONS: DemoProductDefinition[] = [
   {
     id: 'aurora-headphones',
-    name: 'Aurora Pro 降噪耳机',
-    subtitle: '沉浸声场 · 40 小时续航',
-    description:
-      '双芯主动降噪与自适应通透模式，可根据环境自动调整强度。轻量化头梁适合通勤和长时间佩戴。',
-    category: '数码影音',
+    nameKey: 'commerce.demo.auroraHeadphones.name',
+    subtitleKey: 'commerce.demo.auroraHeadphones.subtitle',
+    descriptionKey: 'commerce.demo.auroraHeadphones.description',
+    categoryKey: 'commerce.demo.category.digitalAudio',
     imageUrl:
       'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=900&auto=format&fit=crop',
     priceMinor: 129900,
@@ -16,11 +31,10 @@ export const demoProducts: Product[] = [
   },
   {
     id: 'cedar-watch',
-    name: 'Cedar 健康手表',
-    subtitle: '全天候健康趋势追踪',
-    description:
-      '支持运动、睡眠和心率趋势记录，采用明亮的全天候显示屏与简洁轻盈的铝合金表壳。',
-    category: '智能穿戴',
+    nameKey: 'commerce.demo.cedarWatch.name',
+    subtitleKey: 'commerce.demo.cedarWatch.subtitle',
+    descriptionKey: 'commerce.demo.cedarWatch.description',
+    categoryKey: 'commerce.demo.category.wearables',
     imageUrl:
       'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=900&auto=format&fit=crop',
     priceMinor: 89900,
@@ -29,11 +43,10 @@ export const demoProducts: Product[] = [
   },
   {
     id: 'linen-backpack',
-    name: '城市轻旅双肩包',
-    subtitle: '防泼水面料 · 16 英寸电脑仓',
-    description:
-      '为日常通勤设计的轻量背包，独立电脑仓与隐藏式安全口袋让收纳保持清晰有序。',
-    category: '生活方式',
+    nameKey: 'commerce.demo.linenBackpack.name',
+    subtitleKey: 'commerce.demo.linenBackpack.subtitle',
+    descriptionKey: 'commerce.demo.linenBackpack.description',
+    categoryKey: 'commerce.demo.category.lifestyle',
     imageUrl:
       'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=900&auto=format&fit=crop',
     priceMinor: 36900,
@@ -42,11 +55,10 @@ export const demoProducts: Product[] = [
   },
   {
     id: 'ceramic-set',
-    name: '手作陶瓷咖啡组',
-    subtitle: '一壶两杯 · 哑光釉面',
-    description:
-      '温润哑光釉与自然手作纹理，每一件都保留细微差异，适合日常手冲和赠礼。',
-    category: '家居器物',
+    nameKey: 'commerce.demo.ceramicSet.name',
+    subtitleKey: 'commerce.demo.ceramicSet.subtitle',
+    descriptionKey: 'commerce.demo.ceramicSet.description',
+    categoryKey: 'commerce.demo.category.homeware',
     imageUrl:
       'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=900&auto=format&fit=crop',
     priceMinor: 25900,
@@ -54,10 +66,37 @@ export const demoProducts: Product[] = [
     inventory: 12,
   },
 ];
+const demoProductInstances = new WeakSet<Product>();
 
-export function formatMoney(amountMinor: number, currency: string): string {
+export function getDemoProducts(t: Translate): Product[] {
+  return DEMO_PRODUCT_DEFINITIONS.map(definition => {
+    const product: Product = {
+      id: definition.id,
+      name: t(definition.nameKey),
+      subtitle: t(definition.subtitleKey),
+      description: t(definition.descriptionKey),
+      category: t(definition.categoryKey),
+      imageUrl: definition.imageUrl,
+      priceMinor: definition.priceMinor,
+      currency: definition.currency,
+      inventory: definition.inventory,
+    };
+    demoProductInstances.add(product);
+    return product;
+  });
+}
+
+export function isDemoProduct(product: Product): boolean {
+  return demoProductInstances.has(product);
+}
+
+export function formatMoney(
+  amountMinor: number,
+  currency: string,
+  locale: string,
+): string {
   try {
-    return new Intl.NumberFormat('zh-CN', {
+    return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency,
       minimumFractionDigits: 2,

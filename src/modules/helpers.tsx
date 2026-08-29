@@ -1,6 +1,7 @@
 import React from 'react';
-import {ModuleScreen} from '../ui/ModuleScreen';
-import type {AppModuleFactory} from './contracts';
+import { useApplication } from '../app/ApplicationProvider';
+import { ModuleScreen } from '../ui/ModuleScreen';
+import type { AppModuleFactory } from './contracts';
 
 interface SimpleModuleOptions {
   id: string;
@@ -8,25 +9,32 @@ interface SimpleModuleOptions {
   menuId: string;
   homeId: string;
   titleKey: string;
-  title: string;
-  eyebrow: string;
-  description: string;
-  action?: string;
+  screenTitleKey: string;
+  eyebrowKey: string;
+  descriptionKey: string;
+  actionKey?: string;
   feature?: string;
   permissions?: string[];
   requiresAuth?: boolean;
   translations: Record<string, Record<string, string>>;
 }
 
-export function createSimpleModule(options: SimpleModuleOptions): AppModuleFactory {
-  const Screen = (): React.JSX.Element => (
-    <ModuleScreen
-      eyebrow={options.eyebrow}
-      title={options.title}
-      description={options.description}
-      action={options.action}
-    />
-  );
+export function createSimpleModule(
+  options: SimpleModuleOptions,
+): AppModuleFactory {
+  const Screen = (): React.JSX.Element => {
+    const { services } = useApplication();
+    return (
+      <ModuleScreen
+        eyebrow={services.i18n.t(options.eyebrowKey)}
+        title={services.i18n.t(options.screenTitleKey)}
+        description={services.i18n.t(options.descriptionKey)}
+        action={
+          options.actionKey ? services.i18n.t(options.actionKey) : undefined
+        }
+      />
+    );
+  };
   Screen.displayName = `${options.id}Screen`;
 
   return {

@@ -37,13 +37,13 @@ describe('PaymentLauncher', () => {
     ).toThrow(PaymentLaunchError);
     expect(() =>
       assertTrustedPaymentUrl('alipay', 'https://payments.example.test/pay'),
-    ).toThrow('受信任');
+    ).toThrow('commerce.payment.error.untrustedUrl');
   });
 
   it('reports an unavailable payment app without opening the URL', async () => {
     const native = createNative(false);
     await expect(new PaymentLauncher(native).launch(session)).rejects.toThrow(
-      '无法打开微信',
+      'commerce.payment.error.wechatUnavailable',
     );
     expect(native.openUrl).not.toHaveBeenCalled();
   });

@@ -20,8 +20,8 @@ const PAYMENT_URL_POLICIES: Record<
 };
 
 export class PaymentLaunchError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(readonly messageKey: string) {
+    super(messageKey);
     this.name = 'PaymentLaunchError';
   }
 }
@@ -33,9 +33,10 @@ export class PaymentLauncher {
     assertTrustedPaymentUrl(session.provider, session.redirectUrl);
     const supported = await this.native.canOpenUrl(session.redirectUrl);
     if (!supported) {
-      const app = session.provider === 'wechat' ? '微信' : '支付宝';
       throw new PaymentLaunchError(
-        `无法打开${app}，请确认已安装并升级到最新版`,
+        session.provider === 'wechat'
+          ? 'commerce.payment.error.wechatUnavailable'
+          : 'commerce.payment.error.alipayUnavailable',
       );
     }
     await this.native.openUrl(session.redirectUrl);
@@ -50,17 +51,17 @@ export function assertTrustedPaymentUrl(
   try {
     url = new URL(redirectUrl);
   } catch {
-    throw new PaymentLaunchError('支付地址格式无效');
+    throw new PaymentLaunchError('commerce.payment.error.invalidUrl');
   }
 
   const policy = PAYMENT_URL_POLICIES[provider];
   if (url.protocol === 'https:') {
     if (!policy.httpsHosts.has(url.hostname.toLowerCase())) {
-      throw new PaymentLaunchError('支付地址不属于受信任的支付平台');
+      throw new PaymentLaunchError('commerce.payment.error.untrustedUrl');
     }
     return;
   }
   if (!policy.schemes.has(url.protocol.toLowerCase())) {
-    throw new PaymentLaunchError('支付地址与所选支付方式不匹配');
+    throw new PaymentLaunchError('commerce.payment.error.providerMismatch');
   }
 }

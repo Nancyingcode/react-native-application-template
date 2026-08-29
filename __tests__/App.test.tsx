@@ -5,8 +5,8 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 jest.mock('react-native-safe-area-context', () => ({
-  SafeAreaProvider: ({children}: React.PropsWithChildren) => children,
-  useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0}),
+  SafeAreaProvider: ({ children }: React.PropsWithChildren) => children,
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 import App from '../App';
 
@@ -22,11 +22,11 @@ test('shows QR login on the configured login page instead of home', async () => 
     renderer = ReactTestRenderer.create(<App />);
   });
   const visible = (testID: string): void => {
-    expect(renderer!.root.findAllByProps({testID})).not.toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ testID })).not.toHaveLength(0);
   };
   const press = (testID: string): void => {
     const target = renderer!.root
-      .findAllByProps({testID})
+      .findAllByProps({ testID })
       .find(item => typeof item.props.onPress === 'function');
     expect(target).toBeDefined();
     target!.props.onPress();
@@ -72,4 +72,48 @@ test('shows QR login on the configured login page instead of home', async () => 
   visible('phone-login-phone');
   visible('phone-login-code');
   visible('phone-login-send-code');
+});
+
+test('switches all visible copy without resetting navigation', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  const pressByTestId = (testID: string): void => {
+    const target = renderer!.root
+      .findAllByProps({ testID })
+      .find(item => typeof item.props.onPress === 'function');
+    expect(target).toBeDefined();
+    target!.props.onPress();
+  };
+
+  const loginTab = renderer!.root.findByProps({
+    accessibilityLabel: '登录',
+    accessibilityRole: 'tab',
+  });
+  await ReactTestRenderer.act(() => {
+    loginTab.props.onPress();
+  });
+  expect(
+    renderer!.root.findAllByProps({ accessibilityLabel: '账号密码登录' }),
+  ).not.toHaveLength(0);
+
+  await ReactTestRenderer.act(() => {
+    pressByTestId('locale-switcher');
+  });
+
+  expect(
+    renderer!.root.findAllByProps({
+      accessibilityLabel: 'Sign in with password',
+    }),
+  ).not.toHaveLength(0);
+  expect(
+    renderer!.root.findAllByProps({
+      accessibilityLabel: 'Sign in',
+      accessibilityRole: 'tab',
+    }),
+  ).not.toHaveLength(0);
+  expect(
+    renderer!.root.findAllByProps({ accessibilityLabel: 'Home' }),
+  ).not.toHaveLength(0);
 });

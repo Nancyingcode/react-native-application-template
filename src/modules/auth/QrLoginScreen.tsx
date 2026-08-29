@@ -347,7 +347,9 @@ export function QrLoginScreen(): React.JSX.Element {
             ]}
           >
             <Text style={styles.circleButtonIcon}>
-              {torchEnabled ? 'ON' : 'OFF'}
+              {services.i18n.t(
+                torchEnabled ? 'auth.qr.torch.on' : 'auth.qr.torch.off',
+              )}
             </Text>
             <Text style={styles.circleButtonLabel}>
               {services.i18n.t('auth.qr.torch')}

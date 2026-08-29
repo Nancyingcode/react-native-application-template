@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApplication } from './ApplicationProvider';
+import { LocaleSwitcher } from './LocaleSwitcher';
 import { AppNavigationProvider, type RouteParams } from './navigation';
 
 interface NavigationEntry {
@@ -89,29 +90,33 @@ export function ApplicationShell(): React.JSX.Element {
             {brand.appName}
           </Text>
         </View>
-        {environment !== 'production' ? (
-          <View
-            style={[
-              styles.environmentBadge,
-              compactHeader && styles.environmentBadgeCompact,
-              { backgroundColor: colors.background, borderColor: colors.border },
-            ]}
-          >
-            <Text
-              numberOfLines={1}
+        <View style={styles.headerActions}>
+          {environment !== 'production' ? (
+            <View
               style={[
-                styles.environment,
-                compactHeader && styles.environmentCompact,
-                { color: colors.textMuted },
+                styles.environmentBadge,
+                compactHeader && styles.environmentBadgeCompact,
+                {
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                },
               ]}
             >
-              {environment === 'development'
-                ? services.i18n.t('app.environment')
-                : environment.toUpperCase()}{' '}
-              · {brand.compliance.jurisdiction}
-            </Text>
-          </View>
-        ) : null}
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.environment,
+                  compactHeader && styles.environmentCompact,
+                  { color: colors.textMuted },
+                ]}
+              >
+                {services.i18n.t(`app.environment.${environment}`)} ·{' '}
+                {brand.compliance.jurisdiction}
+              </Text>
+            </View>
+          ) : null}
+          <LocaleSwitcher />
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -415,6 +420,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   brandIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  headerActions: {
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   brandMark: {
     width: 34,
     height: 34,
@@ -426,7 +437,7 @@ const styles = StyleSheet.create({
   appName: { flexShrink: 1, marginLeft: 10, fontSize: 16, fontWeight: '600' },
   appNameCompact: { marginLeft: 8, fontSize: 15 },
   environmentBadge: {
-    maxWidth: '46%',
+    maxWidth: 180,
     minHeight: 32,
     borderWidth: 1,
     borderRadius: 8,
@@ -434,7 +445,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  environmentBadgeCompact: { paddingHorizontal: 8 },
+  environmentBadgeCompact: { maxWidth: 110, paddingHorizontal: 8 },
   environment: { fontSize: 11, fontWeight: '500' },
   environmentCompact: { fontSize: 10 },
   content: { flex: 1 },

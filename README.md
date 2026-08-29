@@ -176,6 +176,12 @@ Debug 包的扫码页提供“开发环境：模拟扫码”，可在没有测�
 
 新增领域模块时实现 `AppModuleFactory`，并把模块的构建期映射加入 `scripts/brand-utils.ts`。独立插件也遵守同一注册协议，但目录放在 `src/plugins`，公共模块不得反向依赖它。
 
+## 国际化
+
+品牌通过 `defaultLocale`、`supportedLocales` 和 `copy` 定义默认语言、可切换语言与品牌级文案；领域模块通过 `translations` 提供自己的同构词典。多语言品牌会在应用标题栏显示语言切换入口，切换后当前页面、表单和导航状态保持不变，界面文案、无障碍标签、金额格式及埋点 locale 会同步更新。单语言品牌不会显示无意义的切换入口。
+
+翻译查找顺序为当前语言、品牌默认语言、原始 key。`npm run brand:validate` 会检查每个受支持语言都存在品牌词典，并阻止品牌级词典缺 key。新增模块文案时应同时补齐该模块支持的所有语言。
+
 ## 原生与密钥
 
 - Android keystore 路径和 alias 可写入品牌清单；密码只能通过 `BRAND_KEYSTORE_PASSWORD` 与 `BRAND_KEY_PASSWORD` 注入。缺失时 debug 构建回退到模板 debug 签名，正式发布流水线应对该情况直接失败。

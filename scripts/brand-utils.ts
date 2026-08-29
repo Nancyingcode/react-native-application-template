@@ -127,8 +127,54 @@ export function validateBrand(brand: BrandConfig): string[] {
   ) {
     errors.push('native.permissions.cameraUsage is required');
   }
-  if (!brand.supportedLocales?.includes(brand.defaultLocale)) {
-    errors.push('defaultLocale must be included in supportedLocales');
+  if (
+    !Array.isArray(brand.supportedLocales) ||
+    brand.supportedLocales.length === 0
+  ) {
+    errors.push('supportedLocales must be a non-empty array');
+  } else if (
+    brand.supportedLocales.some(
+      locale => typeof locale !== 'string' || !locale.trim(),
+    )
+  ) {
+    errors.push('supportedLocales must contain non-empty strings');
+  } else {
+    const normalizedLocales = brand.supportedLocales.map(locale =>
+      locale.toLowerCase(),
+    );
+    const duplicateLocales = brand.supportedLocales.filter(
+      (_locale, index) =>
+        normalizedLocales.indexOf(normalizedLocales[index]) !== index,
+    );
+    if (duplicateLocales.length) {
+      errors.push(
+        `supportedLocales contains duplicates: ${[
+          ...new Set(duplicateLocales),
+        ].join(', ')}`,
+      );
+    }
+    if (!brand.supportedLocales.includes(brand.defaultLocale)) {
+      errors.push('defaultLocale must be included in supportedLocales');
+    }
+
+    const defaultMessages = brand.copy?.[brand.defaultLocale];
+    for (const locale of brand.supportedLocales) {
+      const messages = brand.copy?.[locale];
+      if (!messages || Object.keys(messages).length === 0) {
+        errors.push(`copy.${locale} must contain translations`);
+        continue;
+      }
+      if (defaultMessages) {
+        const missingKeys = Object.keys(defaultMessages).filter(
+          key => typeof messages[key] !== 'string' || !messages[key],
+        );
+        if (missingKeys.length) {
+          errors.push(
+            `copy.${locale} is missing translations: ${missingKeys.join(', ')}`,
+          );
+        }
+      }
+    }
   }
   return errors;
 }

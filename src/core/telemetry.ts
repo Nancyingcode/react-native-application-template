@@ -1,14 +1,14 @@
-import type {Logger} from './logger';
+import type { Logger } from './logger';
 
 export type AnalyticsProperties = Record<string, unknown>;
 export type AnalyticsEventType = 'track' | 'screen' | 'identify';
 
 export interface AnalyticsContext extends AnalyticsProperties {
-  app: {id: string; name: string; version: string};
-  device: {platform: string; osVersion: string};
+  app: { id: string; name: string; version: string };
+  device: { platform: string; osVersion: string };
   locale: string;
   timezone: string;
-  channel: {id: string; campaign?: string};
+  channel: { id: string; campaign?: string };
   sessionId: string;
 }
 
@@ -78,6 +78,7 @@ export class HttpAnalyticsTransport implements AnalyticsTransport {
 }
 
 export interface Analytics {
+  setLocale(locale: string): void;
   setConsent(enabled: boolean): void;
   identify(userId: string, traits?: AnalyticsProperties): void;
   reset(): void;
@@ -111,6 +112,7 @@ export class AnalyticsService implements Analytics {
   private sessionId: string;
   private enabled = false;
   private userId?: string;
+  private locale: string;
   private queue: AnalyticsEvent[] = [];
   private flushTimer?: ReturnType<typeof setTimeout>;
   private activeFlush?: Promise<void>;
@@ -123,6 +125,11 @@ export class AnalyticsService implements Analytics {
     this.createId = config.createId ?? createId;
     this.anonymousId = this.createId();
     this.sessionId = this.createId();
+    this.locale = String(config.context.locale);
+  }
+
+  setLocale(locale: string): void {
+    this.locale = locale;
   }
 
   setConsent(enabled: boolean): void {
@@ -172,13 +179,12 @@ export class AnalyticsService implements Analytics {
     }
 
     this.clearFlushTimer();
-    this.activeFlush = this.drainQueue()
-      .finally(() => {
-        this.activeFlush = undefined;
-        if (this.queue.length > 0) {
-          this.scheduleFlush();
-        }
-      });
+    this.activeFlush = this.drainQueue().finally(() => {
+      this.activeFlush = undefined;
+      if (this.queue.length > 0) {
+        this.scheduleFlush();
+      }
+    });
     return this.activeFlush;
   }
 
@@ -210,7 +216,10 @@ export class AnalyticsService implements Analytics {
       return;
     }
     const normalizedName = name?.trim();
-    if (type !== 'identify' && (!normalizedName || !EVENT_NAME.test(normalizedName))) {
+    if (
+      type !== 'identify' &&
+      (!normalizedName || !EVENT_NAME.test(normalizedName))
+    ) {
       this.config.logger.log('warn', 'Analytics event ignored', {
         reason: 'invalid-event-name',
       });
@@ -221,18 +230,19 @@ export class AnalyticsService implements Analytics {
       schemaVersion: 1,
       messageId: this.createId(),
       type,
-      ...(type === 'screen' ? {name: normalizedName} : {}),
-      ...(type === 'track' ? {event: normalizedName} : {}),
+      ...(type === 'screen' ? { name: normalizedName } : {}),
+      ...(type === 'track' ? { event: normalizedName } : {}),
       timestamp: new Date(this.now()).toISOString(),
       anonymousId: this.anonymousId,
-      ...(this.userId ? {userId: this.userId} : {}),
+      ...(this.userId ? { userId: this.userId } : {}),
       context: sanitizeProperties({
         ...this.config.context,
+        locale: this.locale,
         sessionId: this.sessionId,
       }) as AnalyticsContext,
       ...(type === 'identify'
-        ? {traits: sanitizeProperties(properties)}
-        : {properties: sanitizeProperties(properties)}),
+        ? { traits: sanitizeProperties(properties) }
+        : { properties: sanitizeProperties(properties) }),
     };
     this.queue.push(event);
     if (this.queue.length > this.maxQueueSize) {
@@ -279,9 +289,9 @@ export class AppMonitor implements Monitor {
   ) {}
 
   capture(error: unknown, context: Record<string, unknown> = {}): void {
-    this.logger.log('error', 'monitor.capture', {error, ...context});
+    this.logger.log('error', 'monitor.capture', { error, ...context });
     const normalizedError = normalizeError(error);
-    this.analytics?.track('app_error', {...normalizedError, ...context});
+    this.analytics?.track('app_error', { ...normalizedError, ...context });
   }
 
   async measure<T>(name: string, operation: () => Promise<T>): Promise<T> {
@@ -292,7 +302,7 @@ export class AppMonitor implements Monitor {
       success = true;
       return result;
     } catch (error) {
-      this.capture(error, {operation: name});
+      this.capture(error, { operation: name });
       throw error;
     } finally {
       const durationMs = Date.now() - startedAt;
@@ -309,7 +319,9 @@ export class AppMonitor implements Monitor {
   }
 }
 
-function sanitizeProperties(properties: AnalyticsProperties): AnalyticsProperties {
+function sanitizeProperties(
+  properties: AnalyticsProperties,
+): AnalyticsProperties {
   return sanitizeValue(properties, new WeakSet()) as AnalyticsProperties;
 }
 
@@ -352,9 +364,9 @@ function sanitizeValue(value: unknown, seen: WeakSet<object>): unknown {
 
 function normalizeError(error: unknown): AnalyticsProperties {
   if (error instanceof Error) {
-    return {errorName: error.name, errorMessage: error.message};
+    return { errorName: error.name, errorMessage: error.message };
   }
-  return {errorName: 'UnknownError', errorMessage: String(error)};
+  return { errorName: 'UnknownError', errorMessage: String(error) };
 }
 
 function createId(): string {
