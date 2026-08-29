@@ -21,8 +21,8 @@
     "appStoreId": "0000000000"
   },
   "android": {
-    "applicationId": "com.example.aurora",
-    "playStorePackage": "com.example.aurora"
+    "applicationId": "com.nailon.aurora",
+    "playStorePackage": "com.nailon.aurora"
   },
   "deepLinks": {
     "scheme": "aurora",
