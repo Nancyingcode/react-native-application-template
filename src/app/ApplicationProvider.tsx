@@ -27,6 +27,7 @@ import {
   type AssembledApplication,
 } from './assembleApplication';
 import { useAnalyticsLifecycle } from './useAnalyticsLifecycle';
+import { ota } from '../core/ota';
 
 interface ApplicationContextValue {
   brand: BrandConfig;
@@ -105,8 +106,17 @@ export function ApplicationProvider({
   );
 
   useEffect(() => {
-    registry.initialize().catch(error => services.monitor.capture(error));
+    let mounted = true;
+    registry
+      .initialize()
+      .then(async () => {
+        // Confirm only after the first committed UI and module initialization;
+        // failed startup must leave the native trial marker available for rollback.
+        if (mounted) await ota.markSuccessful();
+      })
+      .catch(error => services.monitor.capture(error));
     return () => {
+      mounted = false;
       registry.dispose().catch(error => services.monitor.capture(error));
     };
   }, [registry, services]);

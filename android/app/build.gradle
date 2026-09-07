@@ -7,6 +7,8 @@ apply plugin: "com.facebook.react"
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
 react {
+    cliFile = file("../../scripts/bundle-cli.js")
+    extraPackagerArgs = ["--max-workers", "2"]
     /* Folders */
     //   The root of your project, i.e. where "package.json" lives. Default is '../..'
     // root = file("../../")
@@ -217,6 +219,11 @@ def verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
 }
 
 tasks.configureEach { task ->
+    if (task.name.startsWith("createBundle") && task.name.endsWith("JsAndAssets")) {
+        // The OTA compatibility manifest also fingerprints native sources and the
+        // signing public key, which are not inputs of RN's standard bundle task.
+        task.doNotTrackState("Regenerate split bundles and OTA compatibility metadata for each native build")
+    }
     if (task.name == "preReleaseBuild") {
         task.dependsOn(verifyReleaseSigning)
     }

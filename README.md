@@ -107,6 +107,12 @@ artifacts/<brand>/<environment>/<version>+<build-number>/
 
 `build-manifest.json` 记录品牌、环境、版本、应用 ID、渠道、模块、Git 源状态、文件大小和 SHA-256，不记录密码或 SDK key 值。同一 checkout 的品牌生成文件是共享的，多品牌打包必须串行执行或使用独立 worktree。
 
+## Bundle 拆分与 OTA
+
+正式构建自动生成 `base.bundle`（Metro 运行时和第三方依赖）与 `business.bundle`（应用、品牌及业务代码）。OTA 提供兼容版本绑定、RSA 签名、完整性校验、下次冷启动生效、启动确认和失败回滚；未配置公钥时禁用在线安装。
+
+使用 `npm run bundle:android` / `npm run bundle:ios` 验证拆包，使用 `npm run ota:release -- ...` 生成签名业务版本。原生包的拆包 baseline 随打包产物归档到 `<platform>/bundles/`。公钥配置、发布命令、客户端 API 和 Hermes 加载取舍见 [`docs/ota.md`](docs/ota.md)。
+
 ## 分层
 
 ```text

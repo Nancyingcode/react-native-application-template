@@ -883,14 +883,17 @@ function publishArtifact(
     publishable: !options.unsigned && options.environment === 'production',
   };
   let existingArtifacts: Record<string, PublishedArtifact> = {};
+  let existingBundles: Record<string, unknown> = {};
   if (fs.existsSync(layout.manifestPath)) {
     try {
       const existing = JSON.parse(
         fs.readFileSync(layout.manifestPath, 'utf8'),
       ) as {
         artifacts?: Record<string, PublishedArtifact>;
+        bundles?: Record<string, unknown>;
       };
       existingArtifacts = existing.artifacts || {};
+      existingBundles = existing.bundles || {};
     } catch {
       existingArtifacts = {};
     }
@@ -914,6 +917,23 @@ function publishArtifact(
     channel: brand.native.channel,
     modules: brand.assembly.modules,
     source: sourceState,
+    bundles: {
+      ...existingBundles,
+      [options.platform]: {
+        manifest: `${options.platform}/bundles/bundle-manifest.json`,
+        ...JSON.parse(
+          fs.readFileSync(
+            path.join(
+              ROOT,
+              'artifacts/bundles',
+              options.platform,
+              'bundle-manifest.json',
+            ),
+            'utf8',
+          ),
+        ),
+      },
+    },
     createdAt: new Date().toISOString(),
     artifacts: {
       ...existingArtifacts,
@@ -979,6 +999,25 @@ export function main(args = process.argv.slice(2)): void {
     options.platform === 'android'
       ? packageAndroid(options).artifact
       : packageIos(options, brand, layout);
+  const bundleDirectory = path.join(layout.platformDirectory, 'bundles');
+  fs.mkdirSync(bundleDirectory, { recursive: true });
+  for (const name of [
+    'base.bundle',
+    'business.bundle',
+    'base.bundle.map',
+    'business.bundle.map',
+    'combined.bundle.map',
+    'module-map.json',
+    'bundle-manifest.json',
+    'public-key.pem',
+  ]) {
+    const file = path.join(ROOT, 'artifacts/bundles', options.platform, name);
+    if (fs.existsSync(file))
+      fs.copyFileSync(file, path.join(bundleDirectory, name));
+    else if (name === 'public-key.pem')
+      fs.rmSync(path.join(bundleDirectory, name), { force: true });
+    else throw new Error(`Missing split bundle artifact: ${file}`);
+  }
   const artifact = publishArtifact(
     nativeArtifact,
     options,
