@@ -8,7 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		A0A000000000000000000001 /* OtaBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0A000000000000000000002 /* OtaBundle.swift */; };
+		A0B000000000000000000001 /* ThreadWatchdog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B000000000000000000002 /* ThreadWatchdog.swift */; };
 		A0A000000000000000000003 /* OtaBundleBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A0A000000000000000000004 /* OtaBundleBridge.m */; };
+		A0B000000000000000000003 /* ThreadWatchdogBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A0B000000000000000000004 /* ThreadWatchdogBridge.m */; };
 		0C80B921A6F3F58F76C31292 /* libPods-WhiteLabelApp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-WhiteLabelApp.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		13B07FC01A68108700A75B9A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
@@ -18,7 +20,9 @@
 
 /* Begin PBXFileReference section */
 		A0A000000000000000000002 /* OtaBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OtaBundle.swift; path = WhiteLabelApp/OtaBundle.swift; sourceTree = "<group>"; };
+		A0B000000000000000000002 /* ThreadWatchdog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ThreadWatchdog.swift; path = WhiteLabelApp/ThreadWatchdog.swift; sourceTree = "<group>"; };
 		A0A000000000000000000004 /* OtaBundleBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = OtaBundleBridge.m; path = WhiteLabelApp/OtaBundleBridge.m; sourceTree = "<group>"; };
+		A0B000000000000000000004 /* ThreadWatchdogBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = ThreadWatchdogBridge.m; path = WhiteLabelApp/ThreadWatchdogBridge.m; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* WhiteLabelApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WhiteLabelApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = WhiteLabelApp/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = WhiteLabelApp/Info.plist; sourceTree = "<group>"; };
@@ -49,7 +53,9 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
 				A0A000000000000000000002 /* OtaBundle.swift */,
+				A0B000000000000000000002 /* ThreadWatchdog.swift */,
 				A0A000000000000000000004 /* OtaBundleBridge.m */,
+				A0B000000000000000000004 /* ThreadWatchdogBridge.m */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
@@ -254,7 +260,9 @@
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
 				A0A000000000000000000001 /* OtaBundle.swift in Sources */,
+				A0B000000000000000000001 /* ThreadWatchdog.swift in Sources */,
 				A0A000000000000000000003 /* OtaBundleBridge.m in Sources */,
+				A0B000000000000000000003 /* ThreadWatchdogBridge.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

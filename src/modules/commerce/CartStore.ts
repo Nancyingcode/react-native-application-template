@@ -30,7 +30,12 @@ export class CartStore {
   }
 
   setQuantity(product: Product, quantity: number): void {
-    const next = Math.max(0, Math.min(product.inventory, Math.floor(quantity)));
+    if (!Number.isFinite(quantity)) {
+      return;
+    }
+    // 商品接口不提供 SKU 库存；未知库存允许本地选购，实际可售数量由下单服务校验。
+    const limit = product.inventory ?? Number.MAX_SAFE_INTEGER;
+    const next = Math.max(0, Math.min(limit, Math.floor(quantity)));
     if (next === 0) {
       this.quantities.delete(product.id);
     } else {

@@ -19,6 +19,7 @@ import { formatMoney, getDemoProducts, isDemoProduct } from './catalog';
 import { PaymentLaunchError, PaymentLauncher } from './payment';
 import { CommerceRepository } from './repository';
 import type { PaymentProvider, PaymentStatus, Product } from './types';
+import { useProduct, useProducts } from './useProducts';
 
 interface CommerceScreens {
   ProductListScreen(): React.JSX.Element;
@@ -52,30 +53,14 @@ export function createCommerceScreens(
     const navigate = useAppNavigation();
     const snapshot = useCart(cart);
     const layout = useProductGridLayout();
-    const demoProducts = getDemoProducts(services.i18n.t.bind(services.i18n));
-    const [remoteProducts, setRemoteProducts] = useState<Product[]>();
-    const [refreshing, setRefreshing] = useState(false);
-    const [noticeKey, setNoticeKey] = useState('commerce.products.notice.demo');
-    const products = remoteProducts ?? demoProducts;
+    const catalog = useProducts(repository, services.monitor);
     const colors = brand.theme.colors;
-
-    const refresh = async (): Promise<void> => {
-      setRefreshing(true);
-      try {
-        const fetchedProducts = await repository.listProducts();
-        setRemoteProducts(fetchedProducts);
-        setNoticeKey('commerce.products.notice.updated');
-      } catch (error) {
-        services.monitor.capture(error, { scope: 'commerce.products' });
-        setNoticeKey('commerce.products.notice.syncFailed');
-      } finally {
-        setRefreshing(false);
-      }
-    };
 
     return (
       <View style={[styles.screen, { backgroundColor: colors.background }]}>
-        <View style={styles.pageHeader}>
+        <View
+          style={[styles.pageHeader, { paddingHorizontal: layout.padding }]}
+        >
           <View style={styles.pageHeaderCopy}>
             <Text style={[styles.eyebrow, { color: colors.primary }]}>
               {services.i18n.t('commerce.products.eyebrow')}
@@ -110,22 +95,37 @@ export function createCommerceScreens(
             </Text>
           </Pressable>
         </View>
-        <View
-          style={[
-            styles.noticePanel,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <Text
-            accessibilityLiveRegion="polite"
-            style={[styles.notice, { color: colors.textMuted }]}
+        {catalog.error && catalog.products.length > 0 ? (
+          <View
+            style={[
+              styles.catalogNoticeContainer,
+              { paddingHorizontal: layout.padding },
+            ]}
           >
-            {services.i18n.t(noticeKey)}
-          </Text>
-        </View>
+            <View
+              style={[
+                styles.noticePanel,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Text
+                accessibilityLiveRegion="polite"
+                style={[styles.notice, { color: colors.textMuted }]}
+              >
+                {services.i18n.t('commerce.products.notice.syncFailed')}
+              </Text>
+              <PrimaryButton
+                label={services.i18n.t('commerce.products.refresh')}
+                onPress={catalog.refresh}
+                disabled={catalog.refreshing}
+                compact
+              />
+            </View>
+          </View>
+        ) : null}
         <FlatList
           key={`product-grid-${layout.columns}`}
-          data={products}
+          data={catalog.products}
           keyExtractor={product => product.id}
           numColumns={layout.columns}
           style={styles.productListContainer}
@@ -134,8 +134,10 @@ export function createCommerceScreens(
             styles.productList,
             { paddingHorizontal: layout.padding },
           ]}
-          refreshing={refreshing}
-          onRefresh={refresh}
+          refreshing={catalog.refreshing}
+          onRefresh={catalog.refresh}
+          onEndReached={catalog.error ? undefined : catalog.loadMore}
+          onEndReachedThreshold={0.3}
           renderItem={({ item }) => (
             <Pressable
               accessibilityLabel={services.i18n.t(
@@ -152,7 +154,6 @@ export function createCommerceScreens(
               onPress={() =>
                 navigate('CommerceProductDetail', {
                   productId: item.id,
-                  source: remoteProducts ? 'remote' : 'demo',
                 })
               }
               style={({ pressed }) => [
@@ -165,7 +166,10 @@ export function createCommerceScreens(
               ]}
             >
               <ProductImage product={item} variant="card" />
-              <Text style={[styles.productCategory, { color: colors.primary }]}>
+              <Text
+                numberOfLines={1}
+                style={[styles.productCategory, { color: colors.primary }]}
+              >
                 {item.category}
               </Text>
               <Text
@@ -179,9 +183,8 @@ export function createCommerceScreens(
               </Text>
             </Pressable>
           )}
-          ListFooterComponent={
-            refreshing ? <ActivityIndicator color={colors.primary} /> : null
-          }
+          ListEmptyComponent={<ProductListEmpty catalog={catalog} />}
+          ListFooterComponent={<ProductListFooter catalog={catalog} />}
         />
       </View>
     );
@@ -190,35 +193,14 @@ export function createCommerceScreens(
   function ProductDetailScreen(): React.JSX.Element {
     const { brand, locale, services } = useApplication();
     const navigate = useAppNavigation();
-    const { productId, source } = useRouteParams();
-    const demoProduct =
-      source === 'remote'
-        ? undefined
-        : getDemoProducts(services.i18n.t.bind(services.i18n)).find(
-            item => item.id === productId,
-          );
-    const [remoteProduct, setRemoteProduct] = useState<Product>();
-    const [loading, setLoading] = useState(!demoProduct);
-    const [added, setAdded] = useState(false);
-    const product = demoProduct ?? remoteProduct;
+    const { productId } = useRouteParams();
+    const { product, loading, error, retry } = useProduct(
+      repository,
+      services.monitor,
+      productId,
+    );
+    const [addedProductId, setAddedProductId] = useState<string>();
     const colors = brand.theme.colors;
-
-    useEffect(() => {
-      if (demoProduct || !productId) {
-        return;
-      }
-      let active = true;
-      repository
-        .getProduct(productId)
-        .then(item => active && setRemoteProduct(item))
-        .catch(error =>
-          services.monitor.capture(error, { scope: 'commerce.product' }),
-        )
-        .finally(() => active && setLoading(false));
-      return () => {
-        active = false;
-      };
-    }, [demoProduct, productId, services.monitor]);
 
     if (loading) {
       return (
@@ -234,17 +216,39 @@ export function createCommerceScreens(
     }
     if (!product) {
       return (
-        <EmptyState
-          title={services.i18n.t('commerce.detail.notFound.title')}
-          action={services.i18n.t('commerce.detail.backToProducts')}
-          onAction={() => navigate('CommerceProducts')}
-        />
+        <View style={[styles.screen, { backgroundColor: colors.background }]}>
+          {error ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => navigate('CommerceProducts')}
+              style={styles.errorBackButton}
+            >
+              <Text style={[styles.back, { color: colors.primary }]}>
+                ← {services.i18n.t('commerce.detail.backToProducts')}
+              </Text>
+            </Pressable>
+          ) : null}
+          <EmptyState
+            title={services.i18n.t(
+              error
+                ? 'commerce.detail.loadFailed'
+                : 'commerce.detail.notFound.title',
+            )}
+            action={services.i18n.t(
+              error ? 'commerce.retry' : 'commerce.detail.backToProducts',
+            )}
+            onAction={error ? retry : () => navigate('CommerceProducts')}
+          />
+        </View>
       );
     }
 
     const addToCart = (): void => {
+      if (product.inventory === 0) {
+        return;
+      }
       cart.add(product);
-      setAdded(true);
+      setAddedProductId(product.id);
       services.analytics.track('commerce_add_to_cart', {
         productId: product.id,
       });
@@ -275,9 +279,11 @@ export function createCommerceScreens(
         >
           {product.name}
         </Text>
-        <Text style={[styles.detailSubtitle, { color: colors.textMuted }]}>
-          {product.subtitle}
-        </Text>
+        {product.subtitle ? (
+          <Text style={[styles.detailSubtitle, { color: colors.textMuted }]}>
+            {product.subtitle}
+          </Text>
+        ) : null}
         <Text style={[styles.detailPrice, { color: colors.text }]}>
           {formatMoney(product.priceMinor, product.currency, locale)}
         </Text>
@@ -286,18 +292,28 @@ export function createCommerceScreens(
           {services.i18n.t('commerce.detail.descriptionTitle')}
         </Text>
         <Text style={[styles.description, { color: colors.textMuted }]}>
-          {product.description}
+          {product.description ||
+            services.i18n.t('commerce.detail.noDescription')}
         </Text>
-        <Text style={[styles.stock, { color: colors.textMuted }]}>
-          {services.i18n.t('commerce.detail.stock', {
-            count: product.inventory,
-          })}
-        </Text>
+        {product.inventory !== null ? (
+          <Text style={[styles.stock, { color: colors.textMuted }]}>
+            {services.i18n.t('commerce.detail.stock', {
+              count: product.inventory,
+            })}
+          </Text>
+        ) : null}
         <PrimaryButton
           label={services.i18n.t(
-            added ? 'commerce.detail.addedToCart' : 'commerce.detail.addToCart',
+            addedProductId === product.id
+              ? 'commerce.detail.addedToCart'
+              : 'commerce.detail.addToCart',
           )}
-          onPress={added ? () => navigate('CommerceCart') : addToCart}
+          onPress={
+            addedProductId === product.id
+              ? () => navigate('CommerceCart')
+              : addToCart
+          }
+          disabled={product.inventory === 0}
         />
       </ScrollView>
     );
@@ -410,23 +426,25 @@ export function createCommerceScreens(
             },
           ]}
         >
-          <View>
-            <Text style={[styles.totalLabel, { color: colors.textMuted }]}>
-              {services.i18n.t('commerce.cart.total')}
-            </Text>
-            <Text style={[styles.total, { color: colors.text }]}>
-              {formatMoney(
-                snapshot.totalMinor,
-                snapshot.lines[0].product.currency,
-                locale,
-              )}
-            </Text>
+          <View style={styles.cartFooterContent}>
+            <View style={styles.cartTotal}>
+              <Text style={[styles.totalLabel, { color: colors.textMuted }]}>
+                {services.i18n.t('commerce.cart.total')}
+              </Text>
+              <Text style={[styles.total, { color: colors.text }]}>
+                {formatMoney(
+                  snapshot.totalMinor,
+                  snapshot.lines[0].product.currency,
+                  locale,
+                )}
+              </Text>
+            </View>
+            <PrimaryButton
+              label={services.i18n.t('commerce.cart.checkout')}
+              onPress={() => navigate('CommerceCheckout')}
+              compact
+            />
           </View>
-          <PrimaryButton
-            label={services.i18n.t('commerce.cart.checkout')}
-            onPress={() => navigate('CommerceCheckout')}
-            compact
-          />
         </View>
       </View>
     );
@@ -665,6 +683,71 @@ export function createCommerceScreens(
   return { ProductListScreen, ProductDetailScreen, CartScreen, CheckoutScreen };
 }
 
+function ProductListEmpty({
+  catalog,
+}: {
+  catalog: ReturnType<typeof useProducts>;
+}): React.JSX.Element {
+  const { brand, services } = useApplication();
+  if (catalog.loading || catalog.refreshing) {
+    return (
+      <ActivityIndicator
+        accessibilityLabel={services.i18n.t('commerce.products.loading')}
+        accessibilityRole="progressbar"
+        color={brand.theme.colors.primary}
+        style={styles.catalogLoading}
+      />
+    );
+  }
+  return (
+    <EmptyState
+      title={services.i18n.t(
+        catalog.error
+          ? 'commerce.products.loadFailed'
+          : 'commerce.products.empty.title',
+      )}
+      description={services.i18n.t(
+        catalog.error
+          ? 'commerce.products.loadFailed.description'
+          : 'commerce.products.empty.description',
+      )}
+      action={services.i18n.t(
+        catalog.error ? 'commerce.retry' : 'commerce.products.refresh',
+      )}
+      onAction={catalog.refresh}
+    />
+  );
+}
+
+function ProductListFooter({
+  catalog,
+}: {
+  catalog: ReturnType<typeof useProducts>;
+}): React.JSX.Element | null {
+  const { brand, services } = useApplication();
+  if (!catalog.hasMore || catalog.products.length === 0) {
+    return null;
+  }
+  return (
+    <View style={styles.catalogFooter}>
+      {catalog.loadingMore ? (
+        <ActivityIndicator
+          accessibilityLabel={services.i18n.t('commerce.products.loading')}
+          accessibilityRole="progressbar"
+          color={brand.theme.colors.primary}
+        />
+      ) : (
+        <PrimaryButton
+          label={services.i18n.t('commerce.products.loadMore')}
+          onPress={catalog.loadMore}
+          disabled={catalog.refreshing}
+          compact
+        />
+      )}
+    </View>
+  );
+}
+
 function applyPaymentStatus(
   status: PaymentStatus,
   setPhase: (phase: 'waiting' | 'succeeded' | 'failed') => void,
@@ -704,7 +787,7 @@ function ProductImage({
   variant: 'card' | 'detail' | 'cart';
 }): React.JSX.Element {
   const { brand, services } = useApplication();
-  const [failed, setFailed] = useState(false);
+  const [failedUrl, setFailedUrl] = useState<string>();
   const colors = brand.theme.colors;
   const imageStyle =
     variant === 'detail'
@@ -714,7 +797,7 @@ function ProductImage({
       : styles.productImage;
   const compact = variant === 'cart';
 
-  if (failed) {
+  if (!product.imageUrl || failedUrl === product.imageUrl) {
     return (
       <View
         accessible
@@ -725,6 +808,7 @@ function ProductImage({
         accessibilityRole="image"
         style={[
           imageStyle,
+          variant === 'detail' && styles.detailImageFallback,
           styles.imageFallback,
           { backgroundColor: colors.background, borderColor: colors.border },
         ]}
@@ -762,7 +846,7 @@ function ProductImage({
         { name: product.name },
       )}
       accessibilityRole="image"
-      onError={() => setFailed(true)}
+      onError={() => setFailedUrl(product.imageUrl)}
       resizeMode="cover"
       source={{ uri: product.imageUrl }}
       style={imageStyle}
@@ -915,7 +999,9 @@ function EmptyState({
           {description}
         </Text>
       ) : null}
-      <PrimaryButton label={action} onPress={onAction} compact />
+      <View style={styles.emptyAction}>
+        <PrimaryButton label={action} onPress={onAction} compact />
+      </View>
     </View>
   );
 }
@@ -923,8 +1009,12 @@ function EmptyState({
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   loading: { flex: 1 },
+  catalogLoading: { paddingVertical: 64 },
+  catalogFooter: { alignItems: 'center', paddingVertical: 16 },
   pageHeader: {
-    paddingHorizontal: 20,
+    width: '100%',
+    maxWidth: 1080,
+    alignSelf: 'center',
     paddingTop: 24,
     flexDirection: 'row',
     alignItems: 'center',
@@ -938,13 +1028,19 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   title: { fontSize: 28, lineHeight: 36, fontWeight: '600' },
+  catalogNoticeContainer: {
+    width: '100%',
+    maxWidth: 1080,
+    alignSelf: 'center',
+  },
   noticePanel: {
     minHeight: 40,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 8,
-    marginHorizontal: 20,
     marginTop: 14,
     paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 12,
     justifyContent: 'center',
   },
   notice: { fontSize: 12, lineHeight: 18 },
@@ -962,7 +1058,7 @@ const styles = StyleSheet.create({
     maxWidth: 1080,
     alignSelf: 'center',
   },
-  productList: { paddingTop: 16, paddingBottom: 32 },
+  productList: { flexGrow: 1, paddingTop: 16, paddingBottom: 32 },
   productRow: { gap: 12 },
   productCard: {
     borderWidth: StyleSheet.hairlineWidth,
@@ -1005,7 +1101,15 @@ const styles = StyleSheet.create({
     minHeight: 42,
   },
   price: { fontSize: 15, fontWeight: '600', marginTop: 8 },
-  detailContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 44 },
+  detailContent: {
+    width: '100%',
+    maxWidth: 768,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 44,
+  },
+  errorBackButton: { paddingHorizontal: 20, paddingVertical: 16 },
   backButton: {
     minHeight: 40,
     alignSelf: 'flex-start',
@@ -1019,6 +1123,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#F0F2F5',
   },
+  detailImageFallback: { aspectRatio: undefined, height: 160 },
   detailTitle: {
     fontSize: 26,
     lineHeight: 34,
@@ -1046,7 +1151,13 @@ const styles = StyleSheet.create({
   compactButton: { marginTop: 0, minWidth: 122 },
   primaryButtonText: { fontSize: 14, fontWeight: '600' },
   primaryButtonTextEnabled: { color: '#FFFFFF' },
-  cartContent: { padding: 20, paddingBottom: 30 },
+  cartContent: {
+    width: '100%',
+    maxWidth: 768,
+    alignSelf: 'center',
+    padding: 20,
+    paddingBottom: 30,
+  },
   cartLine: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 12,
@@ -1075,15 +1186,30 @@ const styles = StyleSheet.create({
   quantity: { width: 40, textAlign: 'center', fontSize: 14, fontWeight: '600' },
   cartFooter: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 20,
     paddingVertical: 16,
+  },
+  cartFooterContent: {
+    width: '100%',
+    maxWidth: 768,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  cartTotal: { flexShrink: 1 },
   totalLabel: { fontSize: 12 },
   total: { fontSize: 22, fontWeight: '600', marginTop: 2 },
-  checkoutContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 },
+  checkoutContent: {
+    width: '100%',
+    maxWidth: 768,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 40,
+  },
   summaryCard: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 12,
@@ -1152,6 +1278,6 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     textAlign: 'center',
     marginTop: 8,
-    marginBottom: 24,
   },
+  emptyAction: { marginTop: 24 },
 });

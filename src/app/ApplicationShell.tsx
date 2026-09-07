@@ -263,9 +263,17 @@ function ShellNavigation({
   const { brand, services, application } = useApplication();
   const insets = useSafeAreaInsets();
   const colors = brand.theme.colors;
+  const menuRouteName =
+    routeName === 'CommerceProductDetail'
+      ? 'CommerceProducts'
+      : routeName === 'CommerceCheckout'
+      ? 'CommerceCart'
+      : routeName;
   const primaryMenu = application.menu.slice(0, 3);
   const secondaryMenu = application.menu.slice(3);
-  const secondaryActive = secondaryMenu.some(item => item.route === routeName);
+  const secondaryActive = secondaryMenu.some(
+    item => item.route === menuRouteName,
+  );
   return (
     <>
       <View
@@ -281,7 +289,7 @@ function ShellNavigation({
         ]}
       >
         <MenuButton
-          active={routeName === 'Home'}
+          active={menuRouteName === 'Home'}
           glyph="⌂"
           label={services.i18n.t('app.home')}
           onPress={() => navigate('Home')}
@@ -291,7 +299,7 @@ function ShellNavigation({
         {primaryMenu.map(item => (
           <MenuButton
             key={item.id}
-            active={routeName === item.route}
+            active={menuRouteName === item.route}
             glyph={getNavigationGlyph(item.id)}
             label={services.i18n.t(item.labelKey)}
             onPress={() => navigate(item.route)}
@@ -342,7 +350,7 @@ function ShellNavigation({
             </Text>
             <View style={styles.moreList}>
               {secondaryMenu.map(item => {
-                const active = routeName === item.route;
+                const active = menuRouteName === item.route;
                 return (
                   <Pressable
                     accessibilityLabel={services.i18n.t(item.labelKey)}

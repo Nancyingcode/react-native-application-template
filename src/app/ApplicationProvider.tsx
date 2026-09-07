@@ -28,6 +28,7 @@ import {
 } from './assembleApplication';
 import { useAnalyticsLifecycle } from './useAnalyticsLifecycle';
 import { ota } from '../core/ota';
+import { startThreadWatchdog } from '../core/threadWatchdog';
 
 interface ApplicationContextValue {
   brand: BrandConfig;
@@ -85,6 +86,7 @@ export function ApplicationProvider({
   );
 
   useAnalyticsLifecycle(services.analytics);
+  useEffect(() => startThreadWatchdog(services.monitor), [services]);
 
   const setLocale = useCallback(
     (nextLocale: string): void => {

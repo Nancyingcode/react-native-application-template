@@ -34,4 +34,26 @@ describe('CartStore', () => {
     cart.setQuantity(product, 0);
     expect(cart.getSnapshot().lines).toEqual([]);
   });
+
+  it('allows local selection when the product API does not report inventory', () => {
+    const cart = new CartStore();
+    const remoteProduct = { ...product, inventory: null };
+    cart.add(remoteProduct);
+    cart.setQuantity(remoteProduct, 3);
+
+    expect(cart.getSnapshot().itemCount).toBe(3);
+    expect(cart.getSnapshot().totalMinor).toBe(3897);
+    expect(cart.getSnapshot().lines[0].product.inventory).toBeNull();
+    cart.setQuantity(remoteProduct, 0);
+    expect(cart.getSnapshot().lines).toEqual([]);
+  });
+
+  it('ignores non-finite quantities without corrupting an existing cart', () => {
+    const cart = new CartStore();
+    cart.add(product);
+    cart.setQuantity(product, Number.NaN);
+    cart.setQuantity(product, Number.POSITIVE_INFINITY);
+    expect(cart.getSnapshot().itemCount).toBe(1);
+    expect(cart.getSnapshot().totalMinor).toBe(1299);
+  });
 });

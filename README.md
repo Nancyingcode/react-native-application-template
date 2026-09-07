@@ -208,11 +208,22 @@ npm run lint
 
 ## 电商与支付接口
 
-`commerce` 模块默认展示示例商品，用户下拉刷新后会读取服务端目录。生产环境需实现以下接口：
+`commerce` 模块进入时自动请求商品列表，每页 20 条，滚动到底部或点击「加载更多」继续分页。下拉刷新重新读取第一页，点击商品后单独请求详情。请求失败支持重试，不回退到前端演示商品。
+
+商品接口已对接 [本地 Swagger 文档](http://localhost:3000/docs#/)，匿名访问：
 
 ```text
-GET  /v1/commerce/products
-GET  /v1/commerce/products/:id
+GET /api/v1/products?page=1&pageSize=20
+GET /api/v1/products/:id
+```
+
+成功响应为 `{ code: "SUCCESS", data, message, requestId, timestamp }`；列表的 `data` 为 `{ items, page, pageSize, total }`，详情的 `data` 为单个商品。`categoryName` 映射分类，`basePrice` 十进制字符串转换为分。缺失图片显示占位，缺失描述显示空说明。当前接口未提供库存，客户端将其记录为未知并保留本地选购，实际可售数量仍由下单服务校验。
+
+当前 Aurora 的 `development.apiBaseUrl` 配置为 `http://localhost:3000`。Android 调试需将所用设备端口反向转发至本机（`adb -s <设备序列号> reverse tcp:3000 tcp:3000`）；iOS 模拟器可访问本机 localhost，真机需在对应品牌环境中配置可达的后端地址。其他品牌及 staging/production 地址仍通过各自 `brands/<品牌>/brand.config.json` 配置。
+
+订单和支付仍使用现有契约，尚未对接此后端的订单、SKU 或支付接口：
+
+```text
 POST /v1/commerce/orders
 POST /v1/commerce/payments
 POST /v1/commerce/payments/status

@@ -8,6 +8,7 @@ import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.whitelabelapp.ota.OtaPackage
 import com.whitelabelapp.ota.OtaStore
+import com.whitelabelapp.monitoring.ThreadWatchdogPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -17,6 +18,7 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this).packages.apply {
           add(OtaPackage())
+          add(ThreadWatchdogPackage())
         },
       jsBundleFilePath = if (BuildConfig.DEBUG) null else OtaStore.get(this).selectBundle(),
     )

@@ -9,7 +9,14 @@ export interface Product {
   imageUrl: string;
   priceMinor: number;
   currency: string;
-  inventory: number;
+  inventory: number | null;
+}
+
+export interface ProductPage {
+  items: Product[];
+  page: number;
+  pageSize: number;
+  total: number;
 }
 
 export interface CartLine {

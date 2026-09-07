@@ -78,17 +78,25 @@ export const commerceModule: AppModuleFactory = {
           'module.commerce.checkout': '收银台',
           'commerce.products.eyebrow': '精选商城',
           'commerce.products.title': '发现好物',
-          'commerce.products.notice.demo':
-            '当前展示示例商品，下拉可同步服务端目录',
-          'commerce.products.notice.updated': '商品目录已更新',
+          'commerce.retry': '重试',
+          'commerce.products.loading': '正在加载商品',
+          'commerce.products.loadMore': '加载更多',
+          'commerce.products.refresh': '刷新商品',
+          'commerce.products.loadFailed': '商品加载失败',
+          'commerce.products.loadFailed.description': '请检查网络连接后重试。',
+          'commerce.products.empty.title': '暂无上架商品',
+          'commerce.products.empty.description':
+            '可以稍后刷新，查看新上架的商品。',
           'commerce.products.notice.syncFailed':
-            '暂时无法同步，已保留本地商品目录',
+            '暂时无法加载商品，已保留当前目录，请重试。',
           'commerce.products.cart.accessibilityLabel': '购物车，{count} 件商品',
           'commerce.products.cart.label': '购物车 {count}',
           'commerce.products.item.accessibilityLabel': '{name}，{price}',
           'commerce.products.item.accessibilityHint': '查看商品详情',
           'commerce.detail.loading.accessibilityLabel': '正在加载商品',
           'commerce.detail.notFound.title': '商品不存在或已下架',
+          'commerce.detail.loadFailed': '商品详情加载失败，请重试',
+          'commerce.detail.noDescription': '暂无商品介绍',
           'commerce.detail.backToProducts': '返回商品列表',
           'commerce.detail.descriptionTitle': '商品介绍',
           'commerce.detail.stock': '库存 {count} 件',
@@ -182,11 +190,18 @@ export const commerceModule: AppModuleFactory = {
           'module.commerce.checkout': 'Checkout',
           'commerce.products.eyebrow': 'Curated shop',
           'commerce.products.title': 'Discover something great',
-          'commerce.products.notice.demo':
-            'Showing demo products. Pull down to sync the server catalog.',
-          'commerce.products.notice.updated': 'Product catalog updated.',
+          'commerce.retry': 'Retry',
+          'commerce.products.loading': 'Loading products',
+          'commerce.products.loadMore': 'Load more',
+          'commerce.products.refresh': 'Refresh products',
+          'commerce.products.loadFailed': 'Unable to load products',
+          'commerce.products.loadFailed.description':
+            'Check your connection and try again.',
+          'commerce.products.empty.title': 'No products available',
+          'commerce.products.empty.description':
+            'Refresh later to see newly available products.',
           'commerce.products.notice.syncFailed':
-            'Unable to sync right now. The local catalog is still available.',
+            'Unable to load products. Your current catalog is still available. Please try again.',
           'commerce.products.cart.accessibilityLabel':
             'Cart, item count: {count}',
           'commerce.products.cart.label': 'Cart {count}',
@@ -195,6 +210,9 @@ export const commerceModule: AppModuleFactory = {
           'commerce.detail.loading.accessibilityLabel': 'Loading product',
           'commerce.detail.notFound.title':
             'This product is unavailable or no longer exists',
+          'commerce.detail.loadFailed':
+            'Unable to load this product. Please try again.',
+          'commerce.detail.noDescription': 'No product description available.',
           'commerce.detail.backToProducts': 'Back to products',
           'commerce.detail.descriptionTitle': 'About this product',
           'commerce.detail.stock': '{count} in stock',

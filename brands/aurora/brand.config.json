@@ -69,7 +69,7 @@
   },
   "environments": {
     "development": {
-      "apiBaseUrl": "https://dev-api.aurora.example",
+      "apiBaseUrl": "http://localhost:3000",
       "marketDataUrl": "wss://dev-feed.aurora.example",
       "timeoutMs": 15000
     },
