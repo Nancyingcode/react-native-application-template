@@ -641,6 +641,55 @@ UI 任务开始前：
 - 避免大量 `!important`。
 - 避免为了一个页面创建平行的 Design System。
 
+### React 组件可读性
+
+页面级 React 组件应主要保留：
+
+- State 状态
+- 页面级业务数据
+- Navigation / Routing 路由状态
+- 页面级事件处理函数
+
+以下内容应优先下沉到子组件或自定义 Hook：
+
+- 布局计算
+- 响应式 UI 计算
+- 仅服务于某个 UI 区域的列表切片、过滤、排序结果
+- 局部 active / disabled / visible 等派生状态
+- 与样式相关的派生值
+- 仅被某一个子 UI 区域使用的变量
+
+避免仅仅为了缩短 JSX，而提前定义大量中间变量。
+
+推荐：
+
+```tsx
+const layout = useShellLayout();
+
+return (
+  <Page>
+    <Header layout={layout} />
+    <Content />
+    <BottomNavigation />
+  </Page>
+);
+```
+
+避免在页面组件中保留大量 UI 实现细节变量：
+
+```tsx
+const horizontalPadding = ...
+const compactHeader = ...
+const columnCount = ...
+const cardGap = ...
+const cardWidth = ...
+const primaryMenu = ...
+const secondaryMenu = ...
+const secondaryActive = ...
+```
+
+页面组件的 `return` 应优先表达 UI 层级和组件结构，而不是展示具体的 UI 实现细节。
+
 ---
 
 ## 十九、Visual QA
