@@ -2,9 +2,15 @@ import path from 'node:path';
 import { parseGenerateBrandOptions } from '../scripts/generate-brand';
 import {
   createIosExportOptions,
-  parsePackageOptions,
+  parsePackageOptions as parseCli,
   resolveArtifactLayout,
 } from '../scripts/package-app';
+
+function parsePackageOptions(args: string[], env: NodeJS.ProcessEnv) {
+  const cli = parseCli(args, env);
+  if (cli.help) throw new Error('Expected build options');
+  return cli.options;
+}
 
 describe('packaging options', () => {
   test('defaults to a production Android App Bundle', () => {
@@ -135,5 +141,105 @@ describe('iOS export options', () => {
     expect(plist).toContain('<string>TEAM&amp;123</string>');
     expect(plist).toContain('<key>com.company.app</key>');
     expect(plist).toContain('<string>Distribution &lt;Profile&gt;</string>');
+  });
+});
+
+describe('CLI compatibility', () => {
+  test('help does not fabricate build options or require a build number', () => {
+    expect(parseCli(['--help'], { BUILD_PLATFORM: 'invalid' })).toEqual({
+      help: true,
+    });
+    expect(() => parseCli(['--help', '--unknown'], {})).toThrow(
+      'Unknown option',
+    );
+  });
+
+  test.each([
+    [
+      [
+        '--platform',
+        'android',
+        '--format',
+        'aab',
+        '--brand',
+        'aurora',
+        '--build-number',
+        '42',
+      ],
+      'android',
+      'aab',
+      false,
+    ],
+    [
+      [
+        '--platform',
+        'android',
+        '--format',
+        'apk',
+        '--brand',
+        'aurora',
+        '--unsigned',
+      ],
+      'android',
+      'apk',
+      true,
+    ],
+    [
+      [
+        '--platform',
+        'ios',
+        '--format',
+        'ipa',
+        '--brand',
+        'aurora',
+        '--build-number',
+        '42',
+      ],
+      'ios',
+      'ipa',
+      false,
+    ],
+  ])(
+    'accepts the documented command %#',
+    (args, platform, format, unsigned) => {
+      expect(parsePackageOptions(args as string[], {})).toMatchObject({
+        platform,
+        format,
+        unsigned,
+      });
+    },
+  );
+
+  test('preserves aliases, positional brand, flags and CI defaults', () => {
+    expect(
+      parsePackageOptions(
+        [
+          'cedar',
+          '--env=staging',
+          '--android-format=apk',
+          '--version-name=2.3',
+          '--out-dir=out',
+          '--clean',
+          '--skip-checks',
+          '--skip-pods',
+          '--allow-provisioning-updates',
+        ],
+        { GITHUB_RUN_NUMBER: '23' },
+      ),
+    ).toMatchObject({
+      brandId: 'cedar',
+      environment: 'staging',
+      format: 'apk',
+      versionName: '2.3',
+      outputDirectory: path.resolve('out'),
+      buildNumber: 23,
+      clean: true,
+      skipChecks: true,
+      skipPods: true,
+      allowProvisioningUpdates: true,
+    });
+    expect(
+      parsePackageOptions(['--platform=ios'], { BUILD_NUMBER: '42' }),
+    ).toMatchObject({ format: 'ipa', unsigned: false });
   });
 });
