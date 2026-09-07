@@ -788,3 +788,55 @@ UI 任务开始前：
 > 这个页面是否看起来像由专业产品设计团队有意识地设计，并已经达到可以进入生产环境的完成度？
 
 如果答案是否定的，应继续优化。
+
+---
+
+## 二十三、构建 CLI 重构规范
+
+以下规范适用于 `scripts/package-app.ts`、`scripts/package/` 及类似构建脚本，不要求非 UI 任务执行视觉设计流程。
+
+### 1. 先确认行为契约，再拆分职责
+
+- 修改前阅读入口、调用方、测试、npm scripts 和 CI 配置，列出必须保留的 CLI 参数、别名、默认值、环境变量及校验规则。
+- 保留现有 CLI 入口和公开导出路径。若类型或返回结构必须调整，应同步修改全部引用和测试，并在交付说明中明确指出。
+- 不因重构改变 Gradle/Xcode 命令、构建顺序、默认架构、产物目录、Manifest schema 或 production / unsigned / publishable 规则；必要的 bug 修复应单独说明。
+- 保留 Windows Android 和 macOS iOS 的执行方式、路径处理、环境变量传递及签名校验，不用单平台验证代替跨平台兼容性判断。
+
+### 2. 沿用现有模块边界
+
+- `package-app.ts` 保留入口、兼容导出和顶层错误处理；`package/index.ts` 负责流程编排。
+- `cli.ts` 负责参数解析、默认值和参数合法性；`validation.ts` 负责品牌与原生构建前置条件。
+- `android.ts`、`ios.ts` 分别负责平台构建与产物验证；`bundles.ts` 负责 Split Bundle 复制；`artifact.ts` 负责目录、校验和、Manifest 与产物发布。
+- `types.ts`、`command.ts`、`config.ts` 分别集中类型、同步命令执行和原生构建常量。
+- 不为拆文件制造大量转发函数或一次性抽象；删除调用方不使用的返回值，仅为实际重复逻辑提取 helper。
+- 构建流程保持同步串行：前置校验 → 品牌生成 → 质量检查 → 原生构建 → 产物验证 → Bundle 复制 → 产物发布与 Manifest 写入。不要为形式上的现代化改为异步或并行。
+
+### 3. 用类型表达合法组合
+
+- `PackageOptions` 使用以 `platform` 为判别字段的联合类型：Android 只允许 `aab | apk`，iOS 只允许 `ipa` 且 `unsigned: false`。
+- 平台函数只接收对应平台的 options / format，通过分支 narrowing 调用，不用宽泛类型加断言绕过约束。
+- CLI 分为解析参数、解析默认值、校验并构造类型三个阶段，保留 CLI 覆盖环境变量的优先级和已有错误规则。
+- 帮助请求使用 `{ help: true }`，正常请求使用 `{ help: false; options: PackageOptions }`；不要为 `--help` 伪造平台、格式或构建号。
+- 优先通过显式校验与类型收窄消除 `as` 和非空断言。只有运行时假设也成立，类型安全才有意义。
+- `process.env` 只在入口或公开 API 默认参数处读取；内部函数通过 context 或显式参数接收同一份 `env`，包括 SDK 查找、构建命令和签名验证。
+
+### 4. 产物完整性与失败行为
+
+- 必需和可选 Bundle 文件使用独立清单。缺少必需文件立即失败；可选公钥缺失时清理目标目录旧文件，避免残留内容被误用。
+- 已存在的 Manifest 解析失败时，报错必须包含文件路径并保留原始原因，不得静默回退为空对象后覆盖历史记录。
+- Manifest 使用同目录临时文件写入后 `rename` 替换，避免中断留下半写入 JSON；保留其他平台、其他格式及已有兼容迁移逻辑。
+- 原子替换只保证单文件写入完整性，不解决多个构建同时读取、合并和覆盖同一 Manifest 的竞争；同一发布目录的写入应串行执行。
+- `signed`、`publishable` 必须保持业务含义；unsigned 构建成功不能作为生产签名或可发布性验证通过的证据。
+
+### 5. 分层验证与 Jenkins 验收
+
+- 先执行项目 `typecheck`、`lint` 和现有测试，检查全部 import/reference、平台 narrowing 和原 CLI 示例；`--help` 仅证明入口可执行。
+- 回归测试重点覆盖 CLI 别名与默认值、非法平台组合、production 构建号规则、Manifest 损坏与替换失败、历史产物合并、必需 Bundle 缺失及可选文件清理。
+- 涉及 Android 公共打包路径时，在可用的原生环境分别验证 AAB 和 APK，因为两者使用不同的构建任务与签名验证方式。iOS 需在 macOS/Xcode 环境单独验证。
+- 用户要求远端验证时，先确认目标提交已推送，再让 Jenkins 通过 SSH 检出准确提交 SHA；不能用远端旧代码或本地未提交快照冒充本次验证。
+- 触发前检查 Jenkins Controller、Agent、任务参数和工作区。执行 `npm ci` 前确认没有进程占用该工作区依赖；只处理已确认属于该工作区的进程。
+- 验证构建优先使用现有任务，并明确环境、品牌、格式、unsigned、测试和部署参数；不要因需要验证而擅自提交、推送或进行外部生产发布。
+- 必须等 Jenkins 最终状态和归档完成，不能只凭 Gradle 的 `BUILD SUCCESSFUL` 判定整条流水线成功。
+- 核对归档 Manifest 的提交 SHA、dirty 状态、格式与发布标记，并比对下载产物的 SHA-256。交付时提供构建链接、实际覆盖范围和未验证项。
+- 区分代码失败与环境失败：沙箱 `spawn EPERM`、Agent 离线、SDK 工具警告应结合日志定位，不通过修改构建逻辑或弱化校验来绕过。
+- PowerShell 调用 Jenkins XML API 时，显式使用 UTF-8 请求字节及 `application/xml; charset=UTF-8`，正确解码响应；认证信息和 Agent secret 不得输出到日志。
