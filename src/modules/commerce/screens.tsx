@@ -27,6 +27,21 @@ interface CommerceScreens {
   CheckoutScreen(): React.JSX.Element;
 }
 
+function useProductGridLayout() {
+  const { width } = useWindowDimensions();
+  const columns = width >= 768 ? 3 : 2;
+  const listWidth = Math.min(width, 1080);
+  const padding = width >= 768 ? 32 : 20;
+
+  return {
+    columns,
+    padding,
+    cardWidth:
+      (listWidth - padding * 2 - styles.productRow.gap * (columns - 1)) /
+      columns,
+  };
+}
+
 export function createCommerceScreens(
   repository: CommerceRepository,
   cart: CartStore,
@@ -36,19 +51,13 @@ export function createCommerceScreens(
     const { brand, locale, services } = useApplication();
     const navigate = useAppNavigation();
     const snapshot = useCart(cart);
-    const { width } = useWindowDimensions();
+    const layout = useProductGridLayout();
     const demoProducts = getDemoProducts(services.i18n.t.bind(services.i18n));
     const [remoteProducts, setRemoteProducts] = useState<Product[]>();
     const [refreshing, setRefreshing] = useState(false);
     const [noticeKey, setNoticeKey] = useState('commerce.products.notice.demo');
     const products = remoteProducts ?? demoProducts;
     const colors = brand.theme.colors;
-    const columns = width >= 768 ? 3 : 2;
-    const listWidth = Math.min(width, 1080);
-    const listPadding = width >= 768 ? 32 : 20;
-    const productGap = 12;
-    const productCardWidth =
-      (listWidth - listPadding * 2 - productGap * (columns - 1)) / columns;
 
     const refresh = async (): Promise<void> => {
       setRefreshing(true);
@@ -115,15 +124,15 @@ export function createCommerceScreens(
           </Text>
         </View>
         <FlatList
-          key={`product-grid-${columns}`}
+          key={`product-grid-${layout.columns}`}
           data={products}
           keyExtractor={product => product.id}
-          numColumns={columns}
+          numColumns={layout.columns}
           style={styles.productListContainer}
           columnWrapperStyle={styles.productRow}
           contentContainerStyle={[
             styles.productList,
-            { paddingHorizontal: listPadding },
+            { paddingHorizontal: layout.padding },
           ]}
           refreshing={refreshing}
           onRefresh={refresh}
@@ -149,7 +158,7 @@ export function createCommerceScreens(
               style={({ pressed }) => [
                 styles.productCard,
                 {
-                  width: productCardWidth,
+                  width: layout.cardWidth,
                   backgroundColor: colors.surface,
                   borderColor: pressed ? colors.primary : colors.border,
                 },

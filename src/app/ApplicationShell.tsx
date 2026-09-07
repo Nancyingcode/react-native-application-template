@@ -19,30 +19,18 @@ interface NavigationEntry {
 }
 
 export function ApplicationShell(): React.JSX.Element {
-  const { brand, environment, services, application } = useApplication();
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { services, application } = useApplication();
   const [navigation, setNavigation] = useState<NavigationEntry>({
     routeName: application.initialRoute,
     params: {},
   });
   const [moreOpen, setMoreOpen] = useState(false);
   const routeName = navigation.routeName;
-  const colors = brand.theme.colors;
   const route = useMemo(
     () => application.routes.find(candidate => candidate.name === routeName),
     [application.routes, routeName],
   );
   const Screen = route?.component;
-  const primaryMenu = application.menu.slice(0, 3);
-  const secondaryMenu = application.menu.slice(3);
-  const secondaryActive = secondaryMenu.some(item => item.route === routeName);
-  const horizontalPadding = width >= 768 ? 32 : 20;
-  const compactHeader = width <= 375;
-  const contentWidth = Math.min(width - horizontalPadding * 2, 960);
-  const columnCount = width >= 768 ? 3 : 2;
-  const cardGap = 12;
-  const cardWidth = (contentWidth - cardGap * (columnCount - 1)) / columnCount;
 
   useEffect(() => {
     services.analytics.screen(routeName, {
@@ -56,164 +44,230 @@ export function ApplicationShell(): React.JSX.Element {
   };
 
   return (
-    <View
-      style={[
-        styles.root,
-        { backgroundColor: colors.background, paddingTop: insets.top },
-      ]}
-    >
-      <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: colors.surface,
-            borderBottomColor: colors.border,
-            paddingLeft: horizontalPadding + insets.left,
-            paddingRight: horizontalPadding + insets.right,
-          },
-        ]}
-      >
-        <View style={styles.brandIdentity}>
-          <View style={[styles.brandMark, { backgroundColor: colors.primary }]}>
-            <Text style={styles.brandMarkText}>
-              {brand.appName.slice(0, 1)}
-            </Text>
-          </View>
-          <Text
-            numberOfLines={1}
-            style={[
-              styles.appName,
-              compactHeader && styles.appNameCompact,
-              { color: colors.text },
-            ]}
-          >
-            {brand.appName}
-          </Text>
-        </View>
-        <View style={styles.headerActions}>
-          {environment !== 'production' ? (
-            <View
-              style={[
-                styles.environmentBadge,
-                compactHeader && styles.environmentBadgeCompact,
-                {
-                  backgroundColor: colors.background,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.environment,
-                  compactHeader && styles.environmentCompact,
-                  { color: colors.textMuted },
-                ]}
-              >
-                {services.i18n.t(`app.environment.${environment}`)} ·{' '}
-                {brand.compliance.jurisdiction}
-              </Text>
-            </View>
-          ) : null}
-          <LocaleSwitcher />
-        </View>
-      </View>
-
+    <ShellFrame>
+      <ShellHeader />
       <View style={styles.content}>
         {routeName === 'Home' || !Screen ? (
-          <ScrollView
-            contentContainerStyle={[
-              styles.home,
-              { paddingHorizontal: horizontalPadding },
-            ]}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.homeInner}>
-              <Text
-                accessibilityRole="header"
-                style={[styles.homeTitle, { color: colors.text }]}
-              >
-                {services.i18n.t('app.quickActions')}
-              </Text>
-              <View style={styles.cardGrid}>
-                {application.home.map(item => (
-                  <Pressable
-                    accessibilityLabel={services.i18n.t(item.titleKey)}
-                    accessibilityRole="button"
-                    key={item.id}
-                    onPress={() => navigate(item.route)}
-                    style={({ pressed }) => [
-                      styles.card,
-                      {
-                        width: cardWidth,
-                        backgroundColor: colors.surface,
-                        borderColor: pressed ? colors.primary : colors.border,
-                      },
-                      pressed && styles.cardPressed,
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.cardIcon,
-                        { backgroundColor: colors.background },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.cardIconText, { color: colors.primary }]}
-                      >
-                        {getNavigationGlyph(item.id)}
-                      </Text>
-                    </View>
-                    <View style={styles.cardFooter}>
-                      <Text style={[styles.cardTitle, { color: colors.text }]}>
-                        {services.i18n.t(item.titleKey)}
-                      </Text>
-                      <Text
-                        style={[styles.cardArrow, { color: colors.textMuted }]}
-                      >
-                        ›
-                      </Text>
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
-              <View
-                style={[
-                  styles.disclosureBox,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.disclosureIcon,
-                    { backgroundColor: colors.background },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.disclosureIconText,
-                      { color: colors.primary },
-                    ]}
-                  >
-                    !
-                  </Text>
-                </View>
-                <Text style={[styles.disclosure, { color: colors.textMuted }]}>
-                  {services.i18n.t(brand.compliance.riskDisclosureKey)}
-                </Text>
-              </View>
-            </View>
-          </ScrollView>
+          <HomeContent navigate={navigate} />
         ) : (
           <AppNavigationProvider navigate={navigate} params={navigation.params}>
             <Screen />
           </AppNavigationProvider>
         )}
       </View>
+      <ShellNavigation
+        routeName={routeName}
+        navigate={navigate}
+        moreOpen={moreOpen}
+        setMoreOpen={setMoreOpen}
+      />
+    </ShellFrame>
+  );
+}
 
+interface NavigationProps {
+  navigate(routeName: string, params?: RouteParams): void;
+}
+
+function ShellFrame({ children }: React.PropsWithChildren): React.JSX.Element {
+  const { brand } = useApplication();
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      style={[
+        styles.root,
+        {
+          backgroundColor: brand.theme.colors.background,
+          paddingTop: insets.top,
+        },
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
+
+function useShellLayout() {
+  const { width } = useWindowDimensions();
+  return {
+    width,
+    horizontalPadding: width >= 768 ? 32 : 20,
+    compactHeader: width <= 375,
+  };
+}
+
+function ShellHeader(): React.JSX.Element {
+  const { brand, environment, services } = useApplication();
+  const insets = useSafeAreaInsets();
+  const { horizontalPadding, compactHeader } = useShellLayout();
+  const colors = brand.theme.colors;
+  return (
+    <View
+      style={[
+        styles.header,
+        {
+          backgroundColor: colors.surface,
+          borderBottomColor: colors.border,
+          paddingLeft: horizontalPadding + insets.left,
+          paddingRight: horizontalPadding + insets.right,
+        },
+      ]}
+    >
+      <View style={styles.brandIdentity}>
+        <View style={[styles.brandMark, { backgroundColor: colors.primary }]}>
+          <Text style={styles.brandMarkText}>{brand.appName.slice(0, 1)}</Text>
+        </View>
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.appName,
+            compactHeader && styles.appNameCompact,
+            { color: colors.text },
+          ]}
+        >
+          {brand.appName}
+        </Text>
+      </View>
+      <View style={styles.headerActions}>
+        {environment !== 'production' ? (
+          <View
+            style={[
+              styles.environmentBadge,
+              compactHeader && styles.environmentBadgeCompact,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.environment,
+                compactHeader && styles.environmentCompact,
+                { color: colors.textMuted },
+              ]}
+            >
+              {services.i18n.t(`app.environment.${environment}`)} ·{' '}
+              {brand.compliance.jurisdiction}
+            </Text>
+          </View>
+        ) : null}
+        <LocaleSwitcher />
+      </View>
+    </View>
+  );
+}
+
+function HomeContent({ navigate }: NavigationProps): React.JSX.Element {
+  const { brand, services, application } = useApplication();
+  const { width, horizontalPadding } = useShellLayout();
+  const colors = brand.theme.colors;
+  const contentWidth = Math.min(width - horizontalPadding * 2, 960);
+  const columnCount = width >= 768 ? 3 : 2;
+  const cardWidth =
+    (contentWidth - styles.cardGrid.gap * (columnCount - 1)) / columnCount;
+  return (
+    <ScrollView
+      contentContainerStyle={[
+        styles.home,
+        { paddingHorizontal: horizontalPadding },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.homeInner}>
+        <Text
+          accessibilityRole="header"
+          style={[styles.homeTitle, { color: colors.text }]}
+        >
+          {services.i18n.t('app.quickActions')}
+        </Text>
+        <View style={styles.cardGrid}>
+          {application.home.map(item => (
+            <Pressable
+              accessibilityLabel={services.i18n.t(item.titleKey)}
+              accessibilityRole="button"
+              key={item.id}
+              onPress={() => navigate(item.route)}
+              style={({ pressed }) => [
+                styles.card,
+                {
+                  width: cardWidth,
+                  backgroundColor: colors.surface,
+                  borderColor: pressed ? colors.primary : colors.border,
+                },
+                pressed && styles.cardPressed,
+              ]}
+            >
+              <View
+                style={[
+                  styles.cardIcon,
+                  { backgroundColor: colors.background },
+                ]}
+              >
+                <Text style={[styles.cardIconText, { color: colors.primary }]}>
+                  {getNavigationGlyph(item.id)}
+                </Text>
+              </View>
+              <View style={styles.cardFooter}>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>
+                  {services.i18n.t(item.titleKey)}
+                </Text>
+                <Text style={[styles.cardArrow, { color: colors.textMuted }]}>
+                  ›
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+        <View
+          style={[
+            styles.disclosureBox,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.disclosureIcon,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <Text
+              style={[styles.disclosureIconText, { color: colors.primary }]}
+            >
+              !
+            </Text>
+          </View>
+          <Text style={[styles.disclosure, { color: colors.textMuted }]}>
+            {services.i18n.t(brand.compliance.riskDisclosureKey)}
+          </Text>
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+function ShellNavigation({
+  routeName,
+  navigate,
+  moreOpen,
+  setMoreOpen,
+}: NavigationProps & {
+  routeName: string;
+  moreOpen: boolean;
+  setMoreOpen(open: boolean): void;
+}): React.JSX.Element {
+  const { brand, services, application } = useApplication();
+  const insets = useSafeAreaInsets();
+  const colors = brand.theme.colors;
+  const primaryMenu = application.menu.slice(0, 3);
+  const secondaryMenu = application.menu.slice(3);
+  const secondaryActive = secondaryMenu.some(item => item.route === routeName);
+  return (
+    <>
       <View
         style={[
           styles.menuBar,
@@ -338,7 +392,7 @@ export function ApplicationShell(): React.JSX.Element {
           </View>
         </View>
       </Modal>
-    </View>
+    </>
   );
 }
 
