@@ -1,5 +1,5 @@
 import type { CacheStore } from './cache';
-import type { SessionManager } from './auth';
+import { InvalidRefreshSessionError, type SessionManager } from './auth';
 import type { Logger } from './logger';
 
 export class ApiError extends Error {
@@ -80,9 +80,16 @@ export class HttpClient {
     headers.set('Accept', 'application/json');
     headers.set('Content-Type', 'application/json');
     headers.set('X-Request-Id', createRequestId());
+    let accessToken: string | undefined;
     if (options.authenticated !== false) {
-      const token = await this.config.session.getAccessToken();
-      if (!token) {
+      try {
+        accessToken = await this.config.session.getAccessToken();
+      } catch (error) {
+        if (!(error instanceof InvalidRefreshSessionError)) {
+          throw error;
+        }
+      }
+      if (!accessToken) {
         this.recordMetric({
           path: metricPath,
           method,
@@ -94,10 +101,12 @@ export class HttpClient {
         });
         throw new AuthenticationRequiredError();
       }
-      headers.set('Authorization', `Bearer ${token}`);
+      headers.set('Authorization', `Bearer ${accessToken}`);
     }
 
     const attempts = Math.max(1, (options.retry ?? 1) + 1);
+    let refreshedAuthentication = false;
+    let refreshFailed = false;
     let lastError: unknown;
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       const controller = new AbortController();
@@ -106,7 +115,7 @@ export class HttpClient {
         this.config.timeoutMs,
       );
       try {
-        const response = await this.fetcher(`${this.config.baseUrl}${path}`, {
+        const request: RequestInit = {
           ...options,
           headers,
           signal: controller.signal,
@@ -114,7 +123,40 @@ export class HttpClient {
             options.body === undefined
               ? undefined
               : JSON.stringify(options.body),
-        });
+        };
+        let response = await this.fetcher(
+          `${this.config.baseUrl}${path}`,
+          request,
+        );
+        const shouldRefresh =
+          response.status === 401 &&
+          accessToken !== undefined &&
+          !refreshedAuthentication;
+        if (shouldRefresh && accessToken) {
+          refreshedAuthentication = true;
+          let refreshedToken: string | undefined;
+          try {
+            refreshedToken = await this.config.session.refreshAccessToken(
+              accessToken,
+            );
+          } catch (error) {
+            if (!(error instanceof InvalidRefreshSessionError)) {
+              refreshFailed = true;
+              throw error;
+            }
+          }
+          if (refreshedToken) {
+            accessToken = refreshedToken;
+            headers.set('Authorization', `Bearer ${refreshedToken}`);
+            response = await this.fetcher(
+              `${this.config.baseUrl}${path}`,
+              request,
+            );
+          }
+        }
+        if (response.status === 401 && accessToken) {
+          await this.config.session.invalidateAccessToken(accessToken);
+        }
         const requestId = response.headers.get('X-Request-Id') ?? undefined;
         if (!response.ok) {
           const details = (await safeJson(response)) as {
@@ -148,7 +190,10 @@ export class HttpClient {
         return data;
       } catch (error) {
         lastError = error;
-        const retryable = !(error instanceof ApiError) || error.status >= 500;
+        // 续期暂时失败时不能再用旧 Token 重试，否则下一次 401 会误清除会话。
+        const retryable =
+          !refreshFailed &&
+          (!(error instanceof ApiError) || error.status >= 500);
         if (!retryable || attempt === attempts) {
           this.config.logger.log('error', 'HTTP request failed', {
             path,
@@ -167,8 +212,8 @@ export class HttpClient {
               error instanceof ApiError
                 ? error.code
                 : error instanceof Error
-                  ? error.name
-                  : 'UNKNOWN_ERROR',
+                ? error.name
+                : 'UNKNOWN_ERROR',
           });
           throw error;
         }
@@ -183,7 +228,7 @@ export class HttpClient {
     try {
       this.config.onRequestCompleted?.(metric);
     } catch (error) {
-      this.config.logger.log('warn', 'HTTP metric observer failed', {error});
+      this.config.logger.log('warn', 'HTTP metric observer failed', { error });
     }
   }
 }

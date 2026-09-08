@@ -1,12 +1,18 @@
-import {Platform} from 'react-native';
+import { Platform } from 'react-native';
 import packageManifest from '../../package.json';
-import type {BrandConfig, BrandEnvironmentName} from '../brand/types';
-import {SessionManager, InMemorySessionStore} from './auth';
-import {MemoryCache} from './cache';
-import {HttpClient} from './http';
-import {I18n} from './i18n';
-import {ConsoleLogger} from './logger';
-import {nativeCapabilities, type NativeCapabilities} from './native';
+import type { BrandConfig, BrandEnvironmentName } from '../brand/types';
+import {
+  applyAuthTokens,
+  type AuthTokensResponse,
+  InvalidRefreshSessionError,
+  SessionManager,
+  InMemorySessionStore,
+} from './auth';
+import { MemoryCache } from './cache';
+import { ApiError, HttpClient } from './http';
+import { I18n } from './i18n';
+import { ConsoleLogger } from './logger';
+import { nativeCapabilities, type NativeCapabilities } from './native';
 import {
   AnalyticsService,
   AppMonitor,
@@ -31,7 +37,7 @@ export function createCoreServices(
   environment: BrandEnvironmentName = 'development',
   appVersion = packageManifest.version,
 ): CoreServices {
-  const logger = new ConsoleLogger({brandId: brand.id});
+  const logger = new ConsoleLogger({ brandId: brand.id });
   const cache = new MemoryCache();
   const env = brand.environments[environment];
   const analyticsKey = brand.native.sdkKeys.analytics;
@@ -73,15 +79,46 @@ export function createCoreServices(
   for (const [locale, messages] of Object.entries(brand.copy)) {
     i18n.add(locale, messages);
   }
+  const http = new HttpClient({
+    baseUrl: env.apiBaseUrl,
+    timeoutMs: env.timeoutMs,
+    session,
+    cache,
+    logger,
+    onRequestCompleted: metric =>
+      analytics.track('http_request', { ...metric }),
+  });
+  session.setRefresher(async currentSession => {
+    try {
+      const response = await http.request<{ data: AuthTokensResponse }>(
+        '/api/v1/auth/refresh',
+        {
+          method: 'POST',
+          body: { refreshToken: currentSession.refreshToken },
+          authenticated: false,
+          // Refresh Token 只能轮换一次；自动重放可能撤销已成功生成的新会话。
+          retry: 0,
+        },
+      );
+      return applyAuthTokens(currentSession, response.data);
+    } catch (error) {
+      const invalidSession =
+        error instanceof ApiError &&
+        (error.status === 401 ||
+          [
+            'REFRESH_TOKEN_INVALID',
+            'TOKEN_INVALID',
+            'USER_DISABLED',
+            'USER_NOT_FOUND',
+          ].includes(error.code));
+      if (invalidSession) {
+        throw new InvalidRefreshSessionError();
+      }
+      throw error;
+    }
+  });
   return {
-    http: new HttpClient({
-      baseUrl: env.apiBaseUrl,
-      timeoutMs: env.timeoutMs,
-      session,
-      cache,
-      logger,
-      onRequestCompleted: metric => analytics.track('http_request', {...metric}),
-    }),
+    http,
     cache,
     session,
     logger,

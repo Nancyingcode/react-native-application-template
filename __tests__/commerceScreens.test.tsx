@@ -70,6 +70,18 @@ describe('commerce screen integration', () => {
     const fetcher = jest
       .spyOn(global, 'fetch')
       .mockImplementation(async url => {
+        if (String(url).endsWith('/api/v1/auth/login')) {
+          return response({
+            user: { id: 'shopper-1' },
+            tokens: {
+              accessToken: 'shopper-access',
+              refreshToken: 'shopper-refresh',
+              tokenType: 'Bearer',
+              accessExpiresInSeconds: 900,
+              refreshExpiresInSeconds: 2592000,
+            },
+          });
+        }
         if (String(url).endsWith(`/api/v1/products/${product.id}`)) {
           return response(product);
         }
@@ -119,6 +131,24 @@ describe('commerce screen integration', () => {
     await press('已加入购物车 · 去结算');
     expect(hasText('共 1 件商品')).toBe(true);
     expect(hasText('129.00')).toBe(true);
+    await press('去结算');
+    expect(hasText('账号密码登录')).toBe(true);
+    await act(async () => {
+      renderer.root
+        .findByProps({ testID: 'account-login-account' })
+        .props.onChangeText('shopper@example.com');
+      renderer.root
+        .findByProps({ testID: 'account-login-password' })
+        .props.onChangeText('shopper-password');
+    });
+    await act(async () => {
+      await renderer.root
+        .findByProps({ testID: 'account-login-submit' })
+        .props.onPress();
+    });
+    await press('更多', 'tab');
+    await press('购物车');
+    expect(hasText('共 1 件商品')).toBe(true);
     await press('去结算');
     expect(hasText('确认订单')).toBe(true);
     expect(selected('更多', 'tab')).toBe(true);

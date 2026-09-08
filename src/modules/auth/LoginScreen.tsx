@@ -46,6 +46,19 @@ export function LoginScreen(): React.JSX.Element {
             {services.i18n.t('auth.login.primaryAction')}
           </Text>
         </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigate('Register')}
+          style={({ pressed }) => [
+            styles.registerLink,
+            pressed && styles.registerLinkPressed,
+          ]}
+          testID="login-register-link"
+        >
+          <Text style={styles.registerLinkText}>
+            {services.i18n.t('auth.register.link')}
+          </Text>
+        </Pressable>
       </View>
 
       {application.login.length > 0 ? (
@@ -131,6 +144,18 @@ function createStyles(theme: ThemeTokens) {
       fontWeight: '600',
     },
     buttonPressed: { backgroundColor: colors.primaryPressed },
+    registerLink: {
+      minHeight: 44,
+      marginTop: theme.spacing.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    registerLinkPressed: { opacity: 0.7 },
+    registerLinkText: {
+      color: colors.primary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
     loginOptions: {
       width: '100%',
       maxWidth: 480,

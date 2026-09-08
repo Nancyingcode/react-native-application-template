@@ -67,18 +67,18 @@ export function ApplicationProvider({
     }
     return moduleRegistry;
   }, [services]);
+  const session = useSyncExternalStore(
+    services.session.subscribe,
+    services.session.getSnapshot,
+    services.session.getSnapshot,
+  );
   const application = useMemo(() => {
-    const permissions = new Set([
-      'portfolio:read',
-      'trade:write',
-      'trade:advanced',
-    ]);
     return assembleApplication(activeBrand, registry.all(), {
       serverFlags,
-      permissions,
-      authenticated: true,
+      permissions: new Set(session?.permissions ?? []),
+      authenticated: session !== null,
     });
-  }, [registry, serverFlags]);
+  }, [registry, serverFlags, session]);
   const locale = useSyncExternalStore(
     listener => services.i18n.subscribe(listener),
     () => services.i18n.getLocale(),

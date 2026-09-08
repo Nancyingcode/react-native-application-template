@@ -16,7 +16,27 @@ test('renders correctly', async () => {
   });
 });
 
-test('shows QR login on the configured login page instead of home', async () => {
+test('shows QR authorization on the login page only after authenticating', async () => {
+  const fetcher = jest.spyOn(global, 'fetch').mockImplementation(async url => {
+    if (String(url).endsWith('/api/v1/auth/login')) {
+      return new Response(
+        JSON.stringify({
+          data: {
+            user: { id: 'user-1' },
+            tokens: {
+              accessToken: 'access-1',
+              refreshToken: 'refresh-1',
+              tokenType: 'Bearer',
+              accessExpiresInSeconds: 900,
+              refreshExpiresInSeconds: 2592000,
+            },
+          },
+        }),
+        { status: 200 },
+      );
+    }
+    return new Response(null, { status: 204 });
+  });
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<App />);
@@ -45,6 +65,31 @@ test('shows QR login on the configured login page instead of home', async () => 
 
   visible('login-option-login.accountPassword');
   visible('login-option-login.phone');
+  expect(
+    renderer!.root.findAllByProps({ testID: 'login-option-login.qrLogin' }),
+  ).toHaveLength(0);
+
+  await ReactTestRenderer.act(() => {
+    press('login-option-login.accountPassword');
+  });
+  await ReactTestRenderer.act(() => {
+    renderer!.root
+      .findByProps({ testID: 'account-login-account' })
+      .props.onChangeText('user@example.com');
+    renderer!.root
+      .findByProps({ testID: 'account-login-password' })
+      .props.onChangeText('example-password');
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer!.root
+      .findByProps({ testID: 'account-login-submit' })
+      .props.onPress();
+  });
+  await ReactTestRenderer.act(() => {
+    renderer!.root
+      .findByProps({ accessibilityLabel: '登录', accessibilityRole: 'tab' })
+      .props.onPress();
+  });
   visible('login-option-login.qrLogin');
 
   await ReactTestRenderer.act(() => {
@@ -72,6 +117,8 @@ test('shows QR login on the configured login page instead of home', async () => 
   visible('phone-login-phone');
   visible('phone-login-code');
   visible('phone-login-send-code');
+  await ReactTestRenderer.act(() => renderer!.unmount());
+  fetcher.mockRestore();
 });
 
 test('switches all visible copy without resetting navigation', async () => {

@@ -19,7 +19,7 @@ interface NavigationEntry {
 }
 
 export function ApplicationShell(): React.JSX.Element {
-  const { services, application } = useApplication();
+  const { services, application, modules } = useApplication();
   const [navigation, setNavigation] = useState<NavigationEntry>({
     routeName: application.initialRoute,
     params: {},
@@ -40,6 +40,14 @@ export function ApplicationShell(): React.JSX.Element {
 
   const navigate = (next: string, params: RouteParams = {}): void => {
     setMoreOpen(false);
+    const target = modules
+      .flatMap(module => module.routes)
+      .find(candidate => candidate.name === next);
+    const needsLogin = target?.requiresAuth && !services.session.getSnapshot();
+    if (needsLogin) {
+      setNavigation({ routeName: 'AccountPasswordLogin', params: {} });
+      return;
+    }
     setNavigation({ routeName: next, params });
   };
 
@@ -263,12 +271,15 @@ function ShellNavigation({
   const { brand, services, application } = useApplication();
   const insets = useSafeAreaInsets();
   const colors = brand.theme.colors;
-  const menuRouteName =
+  let menuRouteName =
     routeName === 'CommerceProductDetail'
       ? 'CommerceProducts'
       : routeName === 'CommerceCheckout'
       ? 'CommerceCart'
       : routeName;
+  if (routeName === 'Register') {
+    menuRouteName = 'Login';
+  }
   const primaryMenu = application.menu.slice(0, 3);
   const secondaryMenu = application.menu.slice(3);
   const secondaryActive = secondaryMenu.some(
