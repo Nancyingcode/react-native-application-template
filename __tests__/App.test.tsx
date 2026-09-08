@@ -16,7 +16,7 @@ test('renders correctly', async () => {
   });
 });
 
-test('shows QR authorization on the login page only after authenticating', async () => {
+test('opens profile and preserves QR authorization after authenticating', async () => {
   const fetcher = jest.spyOn(global, 'fetch').mockImplementation(async url => {
     if (String(url).endsWith('/api/v1/auth/login')) {
       return new Response(
@@ -30,6 +30,22 @@ test('shows QR authorization on the login page only after authenticating', async
               accessExpiresInSeconds: 900,
               refreshExpiresInSeconds: 2592000,
             },
+          },
+        }),
+        { status: 200 },
+      );
+    }
+    if (String(url).endsWith('/api/v1/users/me')) {
+      return new Response(
+        JSON.stringify({
+          data: {
+            id: 'user-1',
+            email: 'user@example.com',
+            phone: null,
+            displayName: 'Profile Customer',
+            status: 'ACTIVE',
+            createdAt: '2026-09-01T00:00:00.000Z',
+            updatedAt: '2026-09-08T00:00:00.000Z',
           },
         }),
         { status: 200 },
@@ -54,6 +70,9 @@ test('shows QR authorization on the login page only after authenticating', async
 
   expect(
     renderer!.root.findAllByProps({ testID: 'login-option-login.qrLogin' }),
+  ).toHaveLength(0);
+  expect(
+    renderer!.root.findAllByProps({ accessibilityLabel: '个人资料' }),
   ).toHaveLength(0);
   const loginTab = renderer!.root.findByProps({
     accessibilityLabel: '登录',
@@ -85,6 +104,27 @@ test('shows QR authorization on the login page only after authenticating', async
       .findByProps({ testID: 'account-login-submit' })
       .props.onPress();
   });
+  await ReactTestRenderer.act(async () => {
+    const profileEntry = renderer!.root
+      .findAllByProps({
+        accessibilityLabel: '个人资料',
+        accessibilityRole: 'button',
+      })
+      .find(item => typeof item.props.onPress === 'function');
+    expect(profileEntry).toBeDefined();
+    profileEntry!.props.onPress();
+  });
+  expect(
+    renderer!.root.findAllByProps({ children: 'Profile Customer' }),
+  ).not.toHaveLength(0);
+  expect(
+    fetcher.mock.calls.some(
+      ([url, options]) =>
+        String(url).endsWith('/api/v1/users/me') &&
+        new Headers(options?.headers).get('Authorization') ===
+          'Bearer access-1',
+    ),
+  ).toBe(true);
   await ReactTestRenderer.act(() => {
     renderer!.root
       .findByProps({ accessibilityLabel: '登录', accessibilityRole: 'tab' })

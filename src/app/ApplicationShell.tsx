@@ -455,6 +455,9 @@ function MenuButton({
 }
 
 function getNavigationGlyph(id: string): string {
+  if (id.includes('profile')) {
+    return '◎';
+  }
   if (id.includes('login')) {
     return '○';
   }

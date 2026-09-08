@@ -1,0 +1,26 @@
+export const cartTranslations = {
+  'zh-CN': {
+    'commerce.cart.empty.title': '购物车还是空的',
+    'commerce.cart.empty.description': '挑选心仪商品后，它们会出现在这里。',
+    'commerce.cart.empty.action': '去逛逛',
+    'commerce.cart.title': '购物车',
+    'commerce.cart.itemCount': '共 {count} 件商品',
+    'commerce.cart.quantity.decrease': '减少 {name} 的数量',
+    'commerce.cart.quantity.value': '数量 {count}',
+    'commerce.cart.quantity.increase': '增加 {name} 的数量',
+    'commerce.cart.total': '合计',
+    'commerce.cart.checkout': '去结算',
+  },
+  'en-US': {
+    'commerce.cart.empty.title': 'Your cart is empty',
+    'commerce.cart.empty.description': 'Products you choose will appear here.',
+    'commerce.cart.empty.action': 'Browse products',
+    'commerce.cart.title': 'Cart',
+    'commerce.cart.itemCount': '{count} items',
+    'commerce.cart.quantity.decrease': 'Decrease quantity of {name}',
+    'commerce.cart.quantity.value': 'Quantity {count}',
+    'commerce.cart.quantity.increase': 'Increase quantity of {name}',
+    'commerce.cart.total': 'Total',
+    'commerce.cart.checkout': 'Checkout',
+  },
+};

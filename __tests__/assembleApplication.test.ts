@@ -1,6 +1,11 @@
 import { assembleApplication } from '../src/app/assembleApplication';
+import aurora from '../brands/aurora/brand.config.json';
+import cedar from '../brands/cedar/brand.config.json';
 import type { BrandConfig } from '../src/brand/types';
+import type { CoreServices } from '../src/core/services';
+import { authModule } from '../src/modules/auth';
 import type { RegisteredModule } from '../src/modules/contracts';
+import { qrLoginPlugin } from '../src/plugins/qr-login';
 
 const brand = {
   id: 'test',
@@ -52,6 +57,54 @@ const modules: RegisteredModule[] = [
 ];
 
 describe('assembleApplication', () => {
+  it.each([aurora, cedar])(
+    '$id exposes profile only after sign-in and preserves login options',
+    config => {
+      const profileBrand = config as BrandConfig;
+      const context = { brand: profileBrand, services: {} as CoreServices };
+      const profileModules = [
+        authModule.create(context),
+        qrLoginPlugin.create(context),
+      ];
+      const assemble = (authenticated: boolean) =>
+        assembleApplication(profileBrand, profileModules, {
+          authenticated,
+          permissions: new Set(),
+          serverFlags: {},
+        });
+
+      const anonymous = assemble(false);
+      expect(anonymous.routes.map(route => route.name)).not.toContain(
+        'Profile',
+      );
+      expect(anonymous.menu.map(item => item.id)).not.toContain('menu.profile');
+      expect(anonymous.home.map(item => item.id)).not.toContain('home.profile');
+      expect(anonymous.login.map(item => item.id)).toEqual([
+        'login.accountPassword',
+        'login.phone',
+      ]);
+
+      const authenticated = assemble(true);
+      expect(authenticated.routes).toContainEqual(
+        expect.objectContaining({ name: 'Profile', requiresAuth: true }),
+      );
+      expect(authenticated.menu[authenticated.menu.length - 1]).toEqual({
+        id: 'menu.profile',
+        labelKey: 'auth.profile.title',
+        route: 'Profile',
+      });
+      expect(authenticated.home[authenticated.home.length - 1]).toEqual({
+        id: 'home.profile',
+        titleKey: 'auth.profile.title',
+        route: 'Profile',
+      });
+      expect(authenticated.login.map(item => item.id)).toEqual(
+        profileBrand.assembly.login,
+      );
+      expect(authenticated.initialRoute).toBe('Home');
+    },
+  );
+
   it('honors brand order and runtime entitlements', () => {
     const result = assembleApplication(brand, modules, {
       authenticated: true,

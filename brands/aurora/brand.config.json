@@ -130,7 +130,8 @@
       "menu.portfolio",
       "menu.news",
       "menu.commerce",
-      "menu.commerceCart"
+      "menu.commerceCart",
+      "menu.profile"
     ],
     "home": [
       "home.markets",
@@ -138,7 +139,8 @@
       "home.news",
       "home.onboarding",
       "home.commerce",
-      "home.advancedOrders"
+      "home.advancedOrders",
+      "home.profile"
     ],
     "login": ["login.accountPassword", "login.phone", "login.qrLogin"],
     "initialRoute": "Home"

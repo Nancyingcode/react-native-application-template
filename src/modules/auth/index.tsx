@@ -1,3 +1,4 @@
+import { smsTranslations } from './sms/translations';
 import type { AppModuleFactory } from '../contracts';
 import {
   AccountPasswordLoginScreen,
@@ -6,6 +7,8 @@ import {
   RegisterScreen,
 } from './AuthMethodScreens';
 import { LoginScreen } from './LoginScreen';
+import { ProfileScreen } from './ProfileScreen';
+import { profileTranslations } from './profileTranslations';
 
 export const authModule: AppModuleFactory = {
   id: 'auth',
@@ -38,6 +41,12 @@ export const authModule: AppModuleFactory = {
         titleKey: 'auth.login.forgotPassword.title',
         component: ForgotPasswordScreen,
       },
+      {
+        name: 'Profile',
+        titleKey: 'auth.profile.title',
+        component: ProfileScreen,
+        requiresAuth: true,
+      },
     ],
     menus: [
       {
@@ -45,6 +54,22 @@ export const authModule: AppModuleFactory = {
         labelKey: 'module.auth.title',
         route: 'Login',
         order: 10,
+      },
+      {
+        id: 'menu.profile',
+        labelKey: 'auth.profile.title',
+        route: 'Profile',
+        order: 90,
+        requiresAuth: true,
+      },
+    ],
+    home: [
+      {
+        id: 'home.profile',
+        titleKey: 'auth.profile.title',
+        route: 'Profile',
+        order: 90,
+        requiresAuth: true,
       },
     ],
     login: [
@@ -65,12 +90,13 @@ export const authModule: AppModuleFactory = {
     ],
     translations: {
       'zh-CN': {
+        ...smsTranslations['zh-CN'],
+        ...profileTranslations['zh-CN'],
         'module.auth.title': '登录',
         'auth.login.accountPassword.title': '账号密码登录',
         'auth.login.accountPassword.description':
           '使用邮箱和密码登录你的账户。',
-        'auth.login.phone.title': '手机号登录',
-        'auth.login.phone.description': '使用手机号和验证码快速登录。',
+
         'auth.login.forgotPassword.title': '忘记密码',
         'auth.login.forgotPassword.description':
           '输入账户名或绑定手机号，我们会协助你重置密码。',
@@ -82,12 +108,7 @@ export const authModule: AppModuleFactory = {
         'auth.login.email.placeholder': '请输入邮箱',
         'auth.login.password.label': '密码',
         'auth.login.password.placeholder': '请输入密码',
-        'auth.login.phone.label': '手机号',
-        'auth.login.phone.placeholder': '请输入手机号',
-        'auth.login.code.label': '验证码',
-        'auth.login.code.placeholder': '请输入验证码',
-        'auth.login.code.send': '获取验证码',
-        'auth.login.code.sent': '已发送',
+
         'auth.login.submit': '登录',
         'auth.login.submitting': '登录中…',
         'auth.login.error.email': '请输入有效的邮箱地址。',
@@ -127,13 +148,13 @@ export const authModule: AppModuleFactory = {
           '注册未完成，请稍后重试；若邮箱已注册，请尝试登录。',
       },
       'en-US': {
+        ...smsTranslations['en-US'],
+        ...profileTranslations['en-US'],
         'module.auth.title': 'Sign in',
         'auth.login.accountPassword.title': 'Sign in with password',
         'auth.login.accountPassword.description':
           'Use your email and password to sign in.',
-        'auth.login.phone.title': 'Sign in with phone',
-        'auth.login.phone.description':
-          'Use your phone number and verification code to sign in.',
+
         'auth.login.forgotPassword.title': 'Forgot password',
         'auth.login.forgotPassword.description':
           'Enter your account or registered phone number to reset your password.',
@@ -145,12 +166,7 @@ export const authModule: AppModuleFactory = {
         'auth.login.email.placeholder': 'Enter email',
         'auth.login.password.label': 'Password',
         'auth.login.password.placeholder': 'Enter password',
-        'auth.login.phone.label': 'Phone number',
-        'auth.login.phone.placeholder': 'Enter phone number',
-        'auth.login.code.label': 'Verification code',
-        'auth.login.code.placeholder': 'Enter code',
-        'auth.login.code.send': 'Send code',
-        'auth.login.code.sent': 'Sent',
+
         'auth.login.submit': 'Sign in',
         'auth.login.submitting': 'Signing in…',
         'auth.login.error.email': 'Enter a valid email address.',

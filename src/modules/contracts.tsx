@@ -18,6 +18,7 @@ export interface MenuContribution {
   labelKey: string;
   route: string;
   order: number;
+  requiresAuth?: boolean;
   feature?: string;
   permissions?: string[];
 }
@@ -27,6 +28,7 @@ export interface HomeContribution {
   titleKey: string;
   route: string;
   order: number;
+  requiresAuth?: boolean;
   feature?: string;
   permissions?: string[];
 }

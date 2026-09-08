@@ -1,34 +1,12 @@
-import {
-  applyAuthTokens,
-  type AuthSession,
-  type AuthTokensResponse,
-} from '../../core/auth';
+import type { AuthSession } from '../../core/auth';
+import { toAuthSession, type AuthenticationResponse } from './authResponse';
 import type { HttpClient } from '../../core/http';
-
-interface AuthenticationResponse {
-  data: {
-    user: { id: string };
-    tokens: AuthTokensResponse;
-  };
-}
 
 export interface RegisterInput {
   email: string;
   password: string;
   phone?: string;
   displayName?: string;
-}
-
-function toAuthSession(response: AuthenticationResponse): AuthSession {
-  const userId = response?.data?.user?.id;
-  if (typeof userId !== 'string' || !userId.trim()) {
-    throw new Error('Invalid authentication response');
-  }
-  return applyAuthTokens(
-    // 认证接口未返回权限，客户端不能自行授予受限功能。
-    { userId, permissions: [] },
-    response.data.tokens,
-  );
 }
 
 export class AuthRepository {

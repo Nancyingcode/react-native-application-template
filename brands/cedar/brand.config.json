@@ -90,8 +90,14 @@
   },
   "assembly": {
     "modules": ["auth", "onboarding", "markets", "news"],
-    "menu": ["menu.login", "menu.markets", "menu.news", "menu.onboarding"],
-    "home": ["home.markets", "home.news", "home.onboarding"],
+    "menu": [
+      "menu.login",
+      "menu.markets",
+      "menu.news",
+      "menu.onboarding",
+      "menu.profile"
+    ],
+    "home": ["home.markets", "home.news", "home.onboarding", "home.profile"],
     "login": ["login.accountPassword", "login.phone"],
     "initialRoute": "Home"
   },

@@ -1,46 +1,8 @@
-export type PaymentProvider = 'wechat' | 'alipay';
-
-export interface Product {
-  id: string;
-  name: string;
-  subtitle: string;
-  description: string;
-  category: string;
-  imageUrl: string;
-  priceMinor: number;
-  currency: string;
-  inventory: number | null;
-}
-
-export interface ProductPage {
-  items: Product[];
-  page: number;
-  pageSize: number;
-  total: number;
-}
-
-export interface CartLine {
-  product: Product;
-  quantity: number;
-}
-
-export interface Order {
-  id: string;
-  amountMinor: number;
-  currency: string;
-}
-
-export type PaymentStatus =
-  | 'pending'
-  | 'processing'
-  | 'succeeded'
-  | 'failed'
-  | 'cancelled';
-
-export interface PaymentSession {
-  id: string;
-  orderId: string;
-  provider: PaymentProvider;
-  redirectUrl: string;
-  status: PaymentStatus;
-}
+export type { CartLine } from './cart/types';
+export type { Product, ProductPage } from './catalog/types';
+export type { Order } from './checkout/types';
+export type {
+  PaymentProvider,
+  PaymentSession,
+  PaymentStatus,
+} from './payments/types';
