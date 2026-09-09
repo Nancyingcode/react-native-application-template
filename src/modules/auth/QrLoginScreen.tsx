@@ -1,17 +1,10 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Linking,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  Vibration,
   View,
 } from 'react-native';
 import {
@@ -27,45 +20,39 @@ import {
 import { useApplication } from '../../app/ApplicationProvider';
 import { useAppNavigation } from '../../app/navigation';
 import type { ThemeTokens } from '../../brand/types';
-import {
-  createQrLoginGateway,
-  parseQrLoginPayload,
-  QrLoginParseError,
-  type QrLoginChallenge,
-} from './qrLogin';
+import { createQrLoginGateway, type QrLoginChallenge } from './qrLogin';
 import { useAppState } from './useAppState';
-
-type ScreenMode =
-  | 'scanning'
-  | 'resolving'
-  | 'reviewing'
-  | 'submitting'
-  | 'rejecting'
-  | 'success';
+import { useQrAuthorization } from '../../plugins/qr-login/useQrAuthorization';
 
 const QR_BARCODE_FORMATS: TargetBarcodeFormat[] = ['qr-code'];
-
-function getRejectedScanDetails(error: unknown): {
-  messageKey: string;
-  reason: string;
-} {
-  if (!(error instanceof QrLoginParseError)) {
-    return {
-      messageKey: 'auth.qr.error.network',
-      reason: 'unknown',
-    };
-  }
-
-  const messageKey =
-    error.code === 'expired'
-      ? 'auth.qr.error.expired'
-      : 'auth.qr.error.invalid';
-  return { messageKey, reason: error.code };
-}
 
 export function QrLoginScreen(): React.JSX.Element {
   const { brand, services } = useApplication();
   const navigate = useAppNavigation();
+  const styles = useMemo(() => createStyles(brand.theme), [brand.theme]);
+  const [leaving, setLeaving] = useState(false);
+  return (
+    <View style={styles.page}>
+      <Pressable
+        accessibilityRole="button"
+        testID="qr-back"
+        style={styles.backButton}
+        onPress={() => {
+          setLeaving(true);
+          navigate('Home');
+        }}
+      >
+        <Text style={styles.secondaryButtonText}>
+          {services.i18n.t('auth.qr.back')}
+        </Text>
+      </Pressable>
+      {leaving ? null : <QrLoginContent />}
+    </View>
+  );
+}
+
+function QrLoginContent(): React.JSX.Element {
+  const { brand, services } = useApplication();
   const styles = useMemo(() => createStyles(brand.theme), [brand.theme]);
   const gateway = useMemo(
     () => createQrLoginGateway(services.http),
@@ -74,75 +61,29 @@ export function QrLoginScreen(): React.JSX.Element {
   const appState = useAppState();
   const device = useCameraDevice('back');
   const permission = useCameraPermission();
-  const [mode, setMode] = useState<ScreenMode>('scanning');
-  const [challenge, setChallenge] = useState<QrLoginChallenge>();
+  const authorization = useQrAuthorization(
+    gateway,
+    services.session,
+    appState === 'active',
+  );
+  const { mode, challenge, secondsRemaining } = authorization;
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [cameraStarted, setCameraStarted] = useState(false);
-  const [messageKey, setMessageKey] = useState<string>();
-  const [secondsRemaining, setSecondsRemaining] = useState<number>();
-  const scanLockedRef = useRef(false);
-  const lastRejectedAtRef = useRef(0);
-
-  const acceptRawValue = useCallback(
-    async (rawValue: string): Promise<void> => {
-      if (scanLockedRef.current) {
-        return;
-      }
-      try {
-        const request = parseQrLoginPayload(rawValue, brand);
-        scanLockedRef.current = true;
-        setTorchEnabled(false);
-        setMessageKey(undefined);
-        setMode('resolving');
-        const parsed = await gateway.resolve(request.id);
-        setChallenge(parsed);
-        setMode('reviewing');
-        Vibration.vibrate(45);
-        services.analytics.track('qr_login_scanned', {
-          hasExpiry: true,
-        });
-      } catch (error) {
-        scanLockedRef.current = false;
-        setChallenge(undefined);
-        setMode('scanning');
-        const now = Date.now();
-        if (now - lastRejectedAtRef.current < 1400) {
-          return;
-        }
-        lastRejectedAtRef.current = now;
-        const rejectedScan = getRejectedScanDetails(error);
-        setMessageKey(rejectedScan.messageKey);
-        services.analytics.track('qr_login_rejected', {
-          reason: rejectedScan.reason,
-        });
-      }
-    },
-    [brand, gateway, services.analytics],
-  );
-
-  const handleBarcodes = useCallback(
-    (barcodes: Barcode[]) => {
-      const detected = barcodes.filter(
-        (barcode): barcode is Barcode & { rawValue: string } =>
-          Boolean(barcode.rawValue),
-      );
-      if (detected.length === 1) {
-        acceptRawValue(detected[0].rawValue);
-      } else if (detected.length > 1) {
-        setMessageKey('auth.qr.error.multiple');
-      }
-    },
-    [acceptRawValue],
-  );
-
-  const handleScannerError = useCallback(
-    (error: Error) => {
-      setMessageKey('auth.qr.error.camera');
-      services.monitor.capture(error, { screen: 'qr-login' });
-    },
-    [services.monitor],
-  );
-
+  const [cameraMessage, setCameraMessage] = useState<string>();
+  const handleBarcodes = (barcodes: Barcode[]) => {
+    if (mode !== 'scanning' || appState !== 'active') return;
+    const detected = barcodes.filter(barcode => Boolean(barcode.rawValue));
+    if (detected.length === 1 && detected[0].rawValue) {
+      setTorchEnabled(false);
+      setCameraMessage(undefined);
+      authorization.scan(detected[0].rawValue);
+    } else if (detected.length > 1) {
+      setCameraMessage('auth.qr.error.multiple');
+    }
+  };
+  const handleScannerError = useCallback(() => {
+    setCameraMessage('auth.qr.error.camera');
+  }, []);
   const scannerOutput = useBarcodeScannerOutput({
     barcodeFormats: QR_BARCODE_FORMATS,
     outputResolution: 'preview',
@@ -151,70 +92,71 @@ export function QrLoginScreen(): React.JSX.Element {
   });
   const cameraOutputs = useMemo(() => [scannerOutput], [scannerOutput]);
 
-  const resetScanner = useCallback(() => {
-    scanLockedRef.current = false;
-    setChallenge(undefined);
-    setMessageKey(undefined);
-    setSecondsRemaining(undefined);
-    setMode('scanning');
-  }, []);
+  if (mode === 'resolving') {
+    return (
+      <CenteredState
+        mark="…"
+        title={services.i18n.t('auth.qr.resolving.title')}
+        description={services.i18n.t('auth.qr.resolving.description')}
+        styles={styles}
+      />
+    );
+  }
 
-  useEffect(() => {
-    if (mode !== 'reviewing' || challenge?.expiresAt === undefined) {
-      setSecondsRemaining(undefined);
-      return;
-    }
-    const update = (): void => {
-      const next = Math.max(
-        0,
-        Math.ceil((challenge.expiresAt! - Date.now()) / 1000),
-      );
-      setSecondsRemaining(next);
-      if (next === 0) {
-        scanLockedRef.current = false;
-        setChallenge(undefined);
-        setMessageKey('auth.qr.error.expired');
-        setMode('scanning');
-      }
-    };
-    update();
-    const timer = setInterval(update, 1000);
-    return () => clearInterval(timer);
-  }, [challenge, mode]);
+  if (mode === 'result') {
+    const approved = challenge?.status === 'CONFIRMED';
+    const cancelled = challenge?.status === 'CANCELLED';
+    const consumed = challenge?.status === 'CONSUMED';
+    return (
+      <CenteredState
+        mark={approved ? '✓' : '—'}
+        title={services.i18n.t(
+          approved
+            ? 'auth.qr.success.title'
+            : cancelled
+            ? 'auth.qr.cancelled.title'
+            : consumed
+            ? 'auth.qr.consumed.title'
+            : 'auth.qr.result.title',
+        )}
+        description={services.i18n.t(
+          authorization.messageKey ?? 'auth.qr.error.unknown',
+        )}
+        action={services.i18n.t('auth.qr.rescan')}
+        onAction={() => {
+          setCameraMessage(undefined);
+          authorization.reset();
+        }}
+        styles={styles}
+      />
+    );
+  }
 
-  const confirmLogin = async (): Promise<void> => {
-    if (!challenge || mode === 'submitting') {
-      return;
-    }
-    setMode('submitting');
-    setMessageKey(undefined);
-    try {
-      await gateway.confirm(challenge.id);
-      setMode('success');
-      services.analytics.track('qr_login_confirmed');
-    } catch (error) {
-      setMode('reviewing');
-      setMessageKey('auth.qr.error.network');
-      services.monitor.capture(error, { operation: 'qr-login-confirm' });
-    }
-  };
+  const isReviewing = mode === 'reviewing';
+  const isSubmitting = mode === 'submitting';
+  const isRejecting = mode === 'rejecting';
+  const shouldShowReview =
+    challenge !== undefined && (isReviewing || isSubmitting || isRejecting);
 
-  const rejectLogin = async (): Promise<void> => {
-    if (!challenge || mode === 'rejecting') {
-      return;
-    }
-    setMode('rejecting');
-    setMessageKey(undefined);
-    try {
-      await gateway.reject(challenge.id);
-      services.analytics.track('qr_login_rejected_by_user');
-      resetScanner();
-    } catch (error) {
-      setMode('reviewing');
-      setMessageKey('auth.qr.error.reject');
-      services.monitor.capture(error, { operation: 'qr-login-reject' });
-    }
-  };
+  if (shouldShowReview) {
+    return (
+      <ReviewState
+        challenge={challenge}
+        message={
+          authorization.messageKey
+            ? services.i18n.t(authorization.messageKey)
+            : undefined
+        }
+        secondsRemaining={secondsRemaining}
+        submitting={isSubmitting}
+        rejecting={isRejecting}
+        onConfirm={authorization.confirm}
+        onCancel={authorization.cancel}
+        styles={styles}
+        t={services.i18n.t.bind(services.i18n)}
+      />
+    );
+  }
 
   if (!permission.hasPermission) {
     return (
@@ -234,52 +176,6 @@ export function QrLoginScreen(): React.JSX.Element {
         title={services.i18n.t('auth.qr.cameraUnavailable.title')}
         description={services.i18n.t('auth.qr.cameraUnavailable.description')}
         styles={styles}
-      />
-    );
-  }
-
-  if (mode === 'resolving') {
-    return (
-      <CenteredState
-        mark="…"
-        title={services.i18n.t('auth.qr.resolving.title')}
-        description={services.i18n.t('auth.qr.resolving.description')}
-        styles={styles}
-      />
-    );
-  }
-
-  if (mode === 'success') {
-    return (
-      <CenteredState
-        mark="OK"
-        title={services.i18n.t('auth.qr.success.title')}
-        description={services.i18n.t('auth.qr.success.description')}
-        action={services.i18n.t('auth.qr.success.done')}
-        onAction={() => navigate('Home')}
-        styles={styles}
-      />
-    );
-  }
-
-  const isReviewing = mode === 'reviewing';
-  const isSubmitting = mode === 'submitting';
-  const isRejecting = mode === 'rejecting';
-  const shouldShowReview =
-    challenge !== undefined && (isReviewing || isSubmitting || isRejecting);
-
-  if (shouldShowReview) {
-    return (
-      <ReviewState
-        challenge={challenge}
-        message={messageKey ? services.i18n.t(messageKey) : undefined}
-        secondsRemaining={secondsRemaining}
-        submitting={isSubmitting}
-        rejecting={isRejecting}
-        onConfirm={confirmLogin}
-        onCancel={rejectLogin}
-        styles={styles}
-        t={services.i18n.t.bind(services.i18n)}
       />
     );
   }
@@ -325,10 +221,10 @@ export function QrLoginScreen(): React.JSX.Element {
           <Text style={styles.securityHint}>
             {services.i18n.t('auth.qr.securityHint')}
           </Text>
-          {messageKey ? (
+          {cameraMessage ? (
             <View style={styles.inlineMessage}>
               <Text style={styles.inlineMessageText}>
-                {services.i18n.t(messageKey)}
+                {services.i18n.t(cameraMessage)}
               </Text>
             </View>
           ) : null}
@@ -356,32 +252,6 @@ export function QrLoginScreen(): React.JSX.Element {
             </Text>
           </Pressable>
         ) : null}
-        {__DEV__ ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              scanLockedRef.current = true;
-              setTorchEnabled(false);
-              setMessageKey(undefined);
-              setChallenge({
-                id: 'demo_challenge_2026_Aurora',
-                deviceName: 'Chrome on Windows',
-                location: 'Hong Kong',
-                expiresAt: Date.now() + 120_000,
-              });
-              setMode('reviewing');
-              Vibration.vibrate(45);
-            }}
-            style={({ pressed }) => [
-              styles.devButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.devButtonText}>
-              {services.i18n.t('auth.qr.demo')}
-            </Text>
-          </Pressable>
-        ) : null}
       </View>
     </View>
   );
@@ -399,7 +269,10 @@ function PermissionState({
   t(key: string): string;
 }): React.JSX.Element {
   return (
-    <View style={styles.centeredRoot}>
+    <ScrollView
+      style={styles.stateScroll}
+      contentContainerStyle={styles.centeredRoot}
+    >
       <View style={styles.permissionIllustration}>
         <View style={styles.cameraBody}>
           <View style={styles.cameraLens} />
@@ -428,7 +301,7 @@ function PermissionState({
         </Text>
       </Pressable>
       <Text style={styles.privacyCopy}>{t('auth.qr.permission.privacy')}</Text>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -472,20 +345,8 @@ function ReviewState({
       </Text>
       <View style={styles.deviceCard}>
         <DetailRow
-          label={t('auth.qr.review.device')}
-          value={challenge.deviceName}
-          styles={styles}
-        />
-        {challenge.location ? (
-          <DetailRow
-            label={t('auth.qr.review.location')}
-            value={challenge.location}
-            styles={styles}
-          />
-        ) : null}
-        <DetailRow
           label={t('auth.qr.review.challenge')}
-          value={`•••• ${challenge.id.slice(-6)}`}
+          value={`•••• ${challenge.sessionId.slice(-6)}`}
           styles={styles}
         />
       </View>
@@ -497,7 +358,8 @@ function ReviewState({
       {message ? <Text style={styles.reviewError}>{message}</Text> : null}
       <Pressable
         accessibilityRole="button"
-        disabled={busy}
+        disabled={busy || secondsRemaining === 0}
+        accessibilityState={{ disabled: busy || secondsRemaining === 0, busy }}
         onPress={onConfirm}
         style={({ pressed }) => [
           styles.primaryButton,
@@ -513,10 +375,12 @@ function ReviewState({
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        disabled={busy}
+        disabled={busy || secondsRemaining === 0}
+        accessibilityState={{ disabled: busy || secondsRemaining === 0, busy }}
         onPress={onCancel}
         style={({ pressed }) => [
           styles.secondaryButton,
+          busy && styles.buttonDisabled,
           pressed && styles.buttonPressed,
         ]}
       >
@@ -562,7 +426,10 @@ function CenteredState({
   styles: ReturnType<typeof createStyles>;
 }): React.JSX.Element {
   return (
-    <View style={styles.centeredRoot}>
+    <ScrollView
+      style={styles.stateScroll}
+      contentContainerStyle={styles.centeredRoot}
+    >
       <View style={styles.resultMark}>
         <Text style={styles.resultMarkText}>{mark}</Text>
       </View>
@@ -580,7 +447,7 @@ function CenteredState({
           <Text style={styles.primaryButtonText}>{action}</Text>
         </Pressable>
       ) : null}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -597,6 +464,13 @@ function Corner({
 function createStyles(theme: ThemeTokens) {
   const { colors } = theme;
   return StyleSheet.create({
+    page: { flex: 1, backgroundColor: colors.background },
+    backButton: {
+      minHeight: 48,
+      paddingHorizontal: 20,
+      justifyContent: 'center',
+      alignSelf: 'flex-start',
+    },
     scannerRoot: { flex: 1, backgroundColor: '#05070B' },
     scannerOverlay: {
       position: 'absolute',
@@ -718,16 +592,9 @@ function createStyles(theme: ThemeTokens) {
     },
     circleButtonIcon: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
     circleButtonLabel: { color: '#FFFFFF', marginTop: 2, fontSize: 10 },
-    devButton: {
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: 12,
-      backgroundColor: 'rgba(255,255,255,0.1)',
-    },
-    devButtonText: { color: '#D7DBE4', fontSize: 11 },
     stateScroll: { flex: 1, backgroundColor: colors.background },
     centeredRoot: {
-      flex: 1,
+      flexGrow: 1,
       backgroundColor: colors.background,
       alignItems: 'center',
       justifyContent: 'center',
@@ -888,11 +755,11 @@ function createStyles(theme: ThemeTokens) {
       width: 76,
       height: 76,
       borderRadius: 38,
-      backgroundColor: colors.success,
+      backgroundColor: colors.surface,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 24,
     },
-    resultMarkText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
+    resultMarkText: { color: colors.text, fontSize: 17, fontWeight: '700' },
   });
 }
