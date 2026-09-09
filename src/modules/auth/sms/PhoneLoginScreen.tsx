@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { Text } from 'react-native';
 import { useApplication } from '../../../app/ApplicationProvider';
 import { useAppNavigation } from '../../../app/navigation';
 import {
@@ -9,94 +9,130 @@ import {
   LinkButton,
   createStyles,
 } from '../shared/form';
+import { useSmsLogin } from './useSmsLogin';
+import { SmsKeyboardLayout } from './SmsKeyboardLayout';
+
 export function PhoneLoginScreen(): React.JSX.Element {
   const { brand, services } = useApplication();
   const navigate = useAppNavigation();
   const styles = useMemo(() => createStyles(brand.theme), [brand.theme]);
-  const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
-  const [codeSent, setCodeSent] = useState(false);
-
-  const sendCode = (): void => {
-    if (!phone.trim()) {
-      return;
-    }
-    setCodeSent(true);
-    services.analytics.track('phone_login_code_requested');
-  };
-
-  const submit = (): void => {
-    if (!phone.trim() || !code.trim()) {
-      return;
-    }
-    services.analytics.track('phone_login_submitted');
-  };
+  const sms = useSmsLogin();
 
   return (
-    <AuthMethodLayout
-      description={services.i18n.t('auth.login.phone.description')}
-      styles={styles}
-      title={services.i18n.t('auth.login.phone.title')}
-    >
-      <AuthField
-        label={services.i18n.t('auth.login.phone.label')}
-        autoComplete="tel"
-        keyboardType="phone-pad"
-        onChangeText={setPhone}
-        placeholder={services.i18n.t('auth.login.phone.placeholder')}
-        placeholderTextColor={brand.theme.colors.textMuted}
+    <SmsKeyboardLayout styles={styles}>
+      <AuthMethodLayout
+        description={services.i18n.t('auth.login.phone.description')}
         styles={styles}
-        testID="phone-login-phone"
-        value={phone}
-      />
-      <View style={styles.codeRow}>
-        <View style={styles.codeInputContainer}>
-          <AuthField
-            label={services.i18n.t('auth.login.code.label')}
-            keyboardType="number-pad"
-            onChangeText={setCode}
-            placeholder={services.i18n.t('auth.login.code.placeholder')}
-            placeholderTextColor={brand.theme.colors.textMuted}
-            styles={styles}
-            testID="phone-login-code"
-            value={code}
-          />
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          disabled={!phone.trim()}
-          onPress={sendCode}
-          style={({ pressed }) => [
-            styles.codeButton,
-            (!phone.trim() || pressed) && styles.codeButtonMuted,
-          ]}
-          testID="phone-login-send-code"
-        >
+        title={services.i18n.t('auth.login.phone.title')}
+      >
+        <AuthField
+          label={services.i18n.t('auth.login.phone.label')}
+          autoComplete="tel"
+          keyboardType="phone-pad"
+          onChangeText={sms.changePhone}
+          placeholder={services.i18n.t('auth.login.phone.placeholder')}
+          placeholderTextColor={brand.theme.colors.textMuted}
+          styles={styles}
+          testID="phone-login-phone"
+          value={sms.phone}
+        />
+        <AuthField
+          label={services.i18n.t('auth.login.code.label')}
+          keyboardType="number-pad"
+          autoComplete="sms-otp"
+          maxLength={6}
+          editable={!sms.busy}
+          onChangeText={sms.changeCode}
+          placeholder={services.i18n.t('auth.login.code.placeholder')}
+          placeholderTextColor={brand.theme.colors.textMuted}
+          styles={styles}
+          testID="phone-login-code"
+          value={sms.code}
+        />
+        {sms.sent ? (
           <Text
-            style={[
-              styles.codeButtonText,
-              !phone.trim() && styles.codeButtonTextMuted,
-            ]}
+            accessibilityLiveRegion="polite"
+            style={styles.fieldHint}
+            testID="phone-login-timing"
           >
             {services.i18n.t(
-              codeSent ? 'auth.login.code.sent' : 'auth.login.code.send',
+              sms.expiresSeconds > 0
+                ? 'auth.login.code.validFor'
+                : 'auth.login.phone.error.expired',
+              { seconds: sms.expiresSeconds },
             )}
           </Text>
-        </Pressable>
-      </View>
-      <ActionButton
-        disabled={!phone.trim() || !code.trim()}
-        label={services.i18n.t('auth.login.submit')}
-        onPress={submit}
-        styles={styles}
-        testID="phone-login-submit"
-      />
-      <LinkButton
-        label={services.i18n.t('auth.login.accountPassword.link')}
-        onPress={() => navigate('AccountPasswordLogin')}
-        styles={styles}
-        testID="phone-login-account-link"
-      />
-    </AuthMethodLayout>
+        ) : null}
+        {sms.errorKey ? (
+          <Text
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite"
+            style={styles.formError}
+            testID="phone-login-error"
+          >
+            {services.i18n.t(sms.errorKey)}
+          </Text>
+        ) : null}
+        <SmsSendButton sms={sms} styles={styles} />
+        <ActionButton
+          busy={sms.busy === 'login'}
+          disabled={!!sms.busy || !sms.phone.trim() || !sms.code}
+          label={services.i18n.t(
+            sms.busy === 'login'
+              ? 'auth.login.code.signingIn'
+              : 'auth.login.submit',
+          )}
+          onPress={sms.submit}
+          styles={styles}
+          testID="phone-login-submit"
+        />
+        <LinkButton
+          label={services.i18n.t('auth.login.accountPassword.link')}
+          onPress={() => navigate('AccountPasswordLogin')}
+          styles={styles}
+          testID="phone-login-account-link"
+        />
+      </AuthMethodLayout>
+    </SmsKeyboardLayout>
+  );
+}
+
+function SmsSendButton({
+  sms,
+  styles,
+}: {
+  sms: ReturnType<typeof useSmsLogin>;
+  styles: ReturnType<typeof createStyles>;
+}): React.JSX.Element {
+  const { services } = useApplication();
+  let labelKey = 'auth.login.code.send';
+  if (sms.busy === 'send') {
+    labelKey = 'auth.login.code.sending';
+  } else if (sms.resendSeconds > 0) {
+    labelKey = 'auth.login.code.resendAfter';
+  }
+  const disabled = !!sms.busy || sms.resendSeconds > 0 || !sms.phone.trim();
+  const secondaryButton = {
+    ...styles.formButton,
+    backgroundColor: styles.input.backgroundColor,
+    borderColor: styles.input.borderColor,
+    borderWidth: 1,
+  };
+  return (
+    <ActionButton
+      busy={sms.busy === 'send'}
+      disabled={disabled}
+      label={services.i18n.t(labelKey, { seconds: sms.resendSeconds })}
+      onPress={sms.sendCode}
+      styles={{
+        ...styles,
+        formButton: secondaryButton,
+        formButtonText: {
+          ...styles.formButtonText,
+          color: styles.linkButtonText.color,
+        },
+      }}
+      testID="phone-login-send-code"
+    />
   );
 }

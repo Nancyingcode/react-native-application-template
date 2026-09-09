@@ -71,13 +71,16 @@ export class InMemorySessionStore implements SessionStore {
 
 export class SessionManager {
   private revision = 0;
+  private publishedRevision = 0;
   private snapshot: AuthSession | null = null;
   private listeners = new Set<() => void>();
   private refresher?: SessionRefresher;
   private refreshedFromToken?: string;
+  private uncertainRefresh?: AuthSession;
   private refreshInFlight?: {
     session: AuthSession;
     promise: Promise<string | undefined>;
+    result: Promise<AuthSession>;
   };
 
   constructor(
@@ -138,8 +141,10 @@ export class SessionManager {
       return this.refreshInFlight.promise;
     }
 
-    const promise = this.refreshSession(session, this.refresher, revision);
-    const flight = { session, promise };
+    const refresher = this.refresher;
+    const result = (async () => refresher(session))();
+    const promise = this.refreshSession(session, result, revision);
+    const flight = { session, promise, result };
     this.refreshInFlight = flight;
     try {
       return await promise;
@@ -152,11 +157,11 @@ export class SessionManager {
 
   private async refreshSession(
     session: AuthSession,
-    refresher: SessionRefresher,
+    result: Promise<AuthSession>,
     revision: number,
   ): Promise<string | undefined> {
     try {
-      const refreshed = await refresher(session);
+      const refreshed = await result;
       // 刷新期间可能退出或切换账号，旧请求不能恢复或覆盖新的登录状态。
       if (revision !== this.revision) {
         return undefined;
@@ -168,6 +173,9 @@ export class SessionManager {
       this.refreshedFromToken = session.accessToken;
       return refreshed.accessToken;
     } catch (error) {
+      if (revision === this.revision) {
+        this.uncertainRefresh = session;
+      }
       // 网络或服务故障不等于凭据失效，保留会话让下一次请求重试。
       if (
         error instanceof InvalidRefreshSessionError &&
@@ -182,6 +190,7 @@ export class SessionManager {
   async setSession(session: AuthSession): Promise<void> {
     const revision = ++this.revision;
     this.refreshedFromToken = undefined;
+    this.uncertainRefresh = undefined;
     await this.store.write(session);
     if (revision === this.revision) {
       this.publish(session);
@@ -191,10 +200,48 @@ export class SessionManager {
   async signOut(): Promise<void> {
     const revision = ++this.revision;
     this.refreshedFromToken = undefined;
-    await this.store.clear();
+    this.uncertainRefresh = undefined;
+    try {
+      await this.store.clear();
+    } catch (error) {
+      if (revision === this.revision) {
+        this.publishedRevision = revision;
+      }
+      throw error;
+    }
     if (revision === this.revision) {
       this.publish(null);
     }
+  }
+
+  async signOutForRevocation(expected: AuthSession): Promise<{
+    refreshToken?: string;
+    rotationUncertain: boolean;
+  } | null> {
+    const hasPendingSessionChange = this.publishedRevision !== this.revision;
+    if (this.snapshot !== expected || hasPendingSessionChange) {
+      return null;
+    }
+    const rotationUncertain = this.uncertainRefresh === expected;
+    const pendingRefresh =
+      this.refreshInFlight?.session === expected
+        ? this.refreshInFlight.result
+        : undefined;
+    // 本地退出不等待网络；捕获同一会话的轮换结果，避免只撤销已消费的旧 Token。
+    await this.signOut();
+    if (pendingRefresh) {
+      try {
+        const refreshed = await pendingRefresh;
+        return {
+          refreshToken: refreshed.refreshToken,
+          rotationUncertain: false,
+        };
+      } catch {
+        // 超时也可能已完成服务端轮换，旧 Token 撤销成功不能证明新 Token 已撤销。
+        return { refreshToken: expected.refreshToken, rotationUncertain: true };
+      }
+    }
+    return { refreshToken: expected.refreshToken, rotationUncertain };
   }
 
   async invalidateAccessToken(accessToken: string): Promise<void> {
@@ -207,6 +254,7 @@ export class SessionManager {
   }
 
   private publish(session: AuthSession | null): void {
+    this.publishedRevision = this.revision;
     this.snapshot = session;
     this.observer?.onSessionChanged(session);
     this.listeners.forEach(listener => listener());
