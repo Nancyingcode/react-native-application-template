@@ -30,10 +30,12 @@ class OtaStore(private val context: Context) {
     state = try { JSONObject(stateFile.openRead().bufferedReader().use { it.readText() }) } catch (_: Exception) { JSONObject() }
   }
 
-  private fun save() {
+  private fun save(nextState: JSONObject) {
     val stream = stateFile.startWrite()
-    try { stream.write(state.toString().toByteArray()); stateFile.finishWrite(stream) }
+    try { stream.write(nextState.toString().toByteArray()); stateFile.finishWrite(stream) }
     catch (error: Exception) { stateFile.failWrite(stream); throw error }
+    // Failed persistence must leave pending/trial available for retry and recovery.
+    state = nextState
   }
 
   private fun version(name: String) = state.optInt(name, 0)
@@ -109,8 +111,7 @@ class OtaStore(private val context: Context) {
       try { stream.write(business); file.finishWrite(stream) } catch (error: Exception) { file.failWrite(stream); throw error }
     }
     File(target, "release.json").writeBytes(envelope)
-    state.put("pending", next).put("highest", next)
-    save()
+    save(JSONObject(state.toString()).put("pending", next).put("highest", next))
     return next
   }
 
@@ -137,20 +138,22 @@ class OtaStore(private val context: Context) {
     try {
       // Persist the trial BEFORE execution: a crash or process kill before JS
       // confirms readiness must restore the previous confirmed version.
+      val nextState = JSONObject(state.toString())
       if (version("trial") != 0) {
-        state.put("failed", version("trial")).put("current", version("previous")).put("previous", 0).put("trial", 0)
+        nextState.put("failed", version("trial")).put("current", version("previous")).put("previous", 0).put("trial", 0)
       }
       if (version("pending") != 0) {
-        state.put("previous", version("current")).put("current", version("pending")).put("trial", version("pending")).put("pending", 0)
+        nextState.put("previous", nextState.optInt("current", 0)).put("current", version("pending")).put("trial", version("pending")).put("pending", 0)
       }
-      save()
+      save(nextState)
       runningVersion = version("current")
       try { selectedPath = prepare(runningVersion) }
       catch (_: Exception) {
-        state.put("failed", runningVersion).put("current", version("previous")).put("previous", 0).put("trial", 0)
+        val fallback = JSONObject(state.toString()).put("failed", runningVersion).put("current", version("previous")).put("previous", 0).put("trial", 0)
+        val fallbackPath = try { prepare(fallback.optInt("current", 0)) } catch (_: Exception) { fallback.put("current", 0); null }
+        save(fallback)
         runningVersion = version("current")
-        selectedPath = try { prepare(runningVersion) } catch (_: Exception) { runningVersion = 0; state.put("current", 0); null }
-        save()
+        selectedPath = fallbackPath
       }
       cleanup()
     } catch (_: Exception) { runningVersion = 0; selectedPath = null }
@@ -164,8 +167,7 @@ class OtaStore(private val context: Context) {
 
   @Synchronized fun markSuccessful(): Boolean {
     if (runningVersion != 0 && version("trial") == runningVersion) {
-      state.put("trial", 0)
-      save()
+      save(JSONObject(state.toString()).put("trial", 0))
     }
     return true
   }

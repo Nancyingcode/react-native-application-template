@@ -126,8 +126,10 @@ final class OtaStore {
       .flatMap { try? JSONDecoder().decode(OtaState.self, from: $0) } ?? OtaState()
   }
 
-  private func save() throws {
-    try JSONEncoder().encode(state).write(to: root.appendingPathComponent("state.json"), options: .atomic)
+  private func save(_ nextState: OtaState) throws {
+    try JSONEncoder().encode(nextState).write(to: root.appendingPathComponent("state.json"), options: .atomic)
+    // Failed persistence must leave pending/trial available for retry and recovery.
+    state = nextState
   }
 
   private func directory(_ version: Int) -> URL { root.appendingPathComponent(String(version), isDirectory: true) }
@@ -175,9 +177,10 @@ final class OtaStore {
     try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
     try business.write(to: target.appendingPathComponent("business.bundle"), options: .atomic)
     try envelope.write(to: target.appendingPathComponent("release.json"), options: .atomic)
-    state.pending = manifest.bundleVersion
-    state.highest = manifest.bundleVersion
-    try save()
+    var nextState = state
+    nextState.pending = manifest.bundleVersion
+    nextState.highest = manifest.bundleVersion
+    try save(nextState)
     return manifest.bundleVersion
   }
 
@@ -208,30 +211,34 @@ final class OtaStore {
     guard baseline != nil else { return nil }
     do {
       // The durable trial marker lets the next launch recover even when JS never starts.
-      if state.trial != 0 {
-        state.failed = state.trial
-        state.current = state.previous
-        state.previous = 0
-        state.trial = 0
+      var nextState = state
+      if nextState.trial != 0 {
+        nextState.failed = nextState.trial
+        nextState.current = nextState.previous
+        nextState.previous = 0
+        nextState.trial = 0
       }
-      if state.pending != 0 {
-        state.previous = state.current
-        state.current = state.pending
-        state.trial = state.pending
-        state.pending = 0
+      if nextState.pending != 0 {
+        nextState.previous = nextState.current
+        nextState.current = nextState.pending
+        nextState.trial = nextState.pending
+        nextState.pending = 0
       }
-      try save()
+      try save(nextState)
       runningVersion = state.current
       do { selectedURL = try prepare(runningVersion) }
       catch {
-        state.failed = runningVersion
-        state.current = state.previous
-        state.previous = 0
-        state.trial = 0
+        var fallback = state
+        fallback.failed = runningVersion
+        fallback.current = state.previous
+        fallback.previous = 0
+        fallback.trial = 0
+        let fallbackURL: URL?
+        do { fallbackURL = try prepare(fallback.current) }
+        catch { fallback.current = 0; fallbackURL = nil }
+        try save(fallback)
         runningVersion = state.current
-        do { selectedURL = try prepare(runningVersion) }
-        catch { runningVersion = 0; state.current = 0; selectedURL = nil }
-        try save()
+        selectedURL = fallbackURL
       }
       let retained = [state.current, state.previous, state.pending]
       for file in (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [] {
@@ -245,7 +252,11 @@ final class OtaStore {
 
   func markSuccessful() throws -> Bool {
     lock.lock(); defer { lock.unlock() }
-    if runningVersion != 0, state.trial == runningVersion { state.trial = 0; try save() }
+    if runningVersion != 0, state.trial == runningVersion {
+      var nextState = state
+      nextState.trial = 0
+      try save(nextState)
+    }
     return true
   }
 

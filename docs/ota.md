@@ -129,6 +129,8 @@ if (status.supported && status.pendingVersion === 0) {
 
 `getStatus()` 返回 `supported`、`runtimeVersion`、`baseVersion`、`currentVersion`、`pendingVersion`、`previousVersion`、`failedVersion`、`highestVersion`。不要自动高频重试已拒绝的版本。
 
+状态变更仅在状态文件保存成功后提交到内存。`stage` 保存失败不会占用 pending 或提高 highest，存储故障解除后可在同一进程重试；确认保存失败会保留 trial，可重试确认，未确认就退出则下次启动仍执行回退。启动选择或回退的状态保存失败时，本次进程固定使用内置包（`currentVersion = 0`），保留已持久化的状态和版本文件供下次冷启动恢复，不在运行中切换 bundle。
+
 ## 试运行与回滚
 
 ```text
