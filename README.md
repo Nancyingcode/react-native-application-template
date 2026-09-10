@@ -230,3 +230,9 @@ POST /v1/commerce/payments/status
 ```
 
 创建支付请求体包含 `{ orderId, provider, idempotencyKey }`，返回 `{ id, orderId, provider, redirectUrl, status }`；查单请求体包含 `{ paymentId }`。微信采用 H5 收银台，`redirectUrl` 仅接受 `https://wx.tenpay.com`；支付宝仅接受 `alipays://` 或支付宝官方 HTTPS 域名。服务端负责金额和库存复算、幂等下单、签名、异步通知验签；客户端在回到前台后查询服务端状态，不信任跳转参数作为支付成功依据。订单与支付接口要求有效 Bearer Token。
+
+## App 更新查询入口
+
+在品牌配置的 `environments.<environment>` 中设置可选的 `otaQueryUrl`，值为平台的完整 HTTPS 查询地址，例如 `https://updates.example.com/v1/apps/<app-UUID>/updates`。不配置时首页仍显示“检查更新”，点击会提示未开放在线更新；不要把平台管理员 token 放进 App。
+
+首页入口读取原生 OTA 状态，以 `max(currentVersion, highestVersion)` 查询，避免重新推荐已经失败或暂存的版本。显示检查中、暂无更新、发现更新、待重启、不支持和失败状态。本次入口只查询，不自动下载或安装；既有 `ota.stage()` 的签名与兼容性校验流程保持不变。

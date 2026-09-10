@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApplication } from './ApplicationProvider';
 import { LocaleSwitcher } from './LocaleSwitcher';
+import { UpdateCheck } from './UpdateCheck';
 import { AppNavigationProvider, type RouteParams } from './navigation';
 
 interface NavigationEntry {
@@ -190,6 +191,7 @@ function HomeContent({ navigate }: NavigationProps): React.JSX.Element {
         >
           {services.i18n.t('app.quickActions')}
         </Text>
+        <UpdateCheck />
         <View style={styles.cardGrid}>
           {application.home.map(item => (
             <Pressable

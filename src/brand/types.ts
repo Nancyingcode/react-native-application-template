@@ -32,6 +32,7 @@ export interface ThemeTokens {
 
 export interface BrandEnvironment {
   apiBaseUrl: string;
+  otaQueryUrl?: string;
   marketDataUrl: string;
   timeoutMs: number;
 }
