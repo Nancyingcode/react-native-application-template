@@ -37,6 +37,31 @@ it.each([aurora, cedar])(
       expect(assemble(true).routes.map(route => route.name)).toContain(
         'CommerceCheckout',
       );
+      const authenticated = assemble(true);
+      expect(authenticated.routes).toHaveLength(13);
+      expect(authenticated.menu.map(menu => menu.route)).toEqual(
+        expect.arrayContaining([
+          'CommerceOrders',
+          'CommerceCoupons',
+          'CommerceAccount',
+          'CommerceNotifications',
+          'CommerceSeckill',
+        ]),
+      );
+      for (const menu of authenticated.menu) {
+        expect(
+          authenticated.routes.some(route => route.name === menu.route),
+        ).toBe(true);
+      }
+      for (const locale of ['zh-CN', 'en-US']) {
+        for (const route of authenticated.routes) {
+          expect(module.translations?.[locale]?.[route.titleKey]).toBeTruthy();
+        }
+      }
+      expect(assemble(false).menu.map(menu => menu.route)).toEqual([
+        'CommerceProducts',
+        'CommerceCart',
+      ]);
       await module.initialize?.();
       await Promise.resolve();
       expect(request).not.toHaveBeenCalled();

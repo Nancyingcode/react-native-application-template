@@ -131,6 +131,12 @@
       "menu.news",
       "menu.commerce",
       "menu.commerceCart",
+      "menu.CommerceOrders",
+      "menu.CommerceCoupons",
+      "menu.CommerceAccount",
+      "menu.CommerceNotifications",
+      "menu.CommerceSeckill",
+
       "menu.profile"
     ],
     "home": [

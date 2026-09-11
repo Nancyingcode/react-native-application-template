@@ -1,5 +1,8 @@
+import { paymentFlowTranslations } from './flowTranslations';
+
 export const paymentsTranslations = {
   'zh-CN': {
+    ...paymentFlowTranslations['zh-CN'],
     'commerce.payment.provider.wechat': '微信支付',
     'commerce.payment.provider.wechat.short': '微信',
     'commerce.payment.provider.wechat.mark': '微',
@@ -37,6 +40,7 @@ export const paymentsTranslations = {
     'commerce.payment.error.providerMismatch': '支付地址与所选支付方式不匹配',
   },
   'en-US': {
+    ...paymentFlowTranslations['en-US'],
     'commerce.payment.provider.wechat': 'WeChat Pay',
     'commerce.payment.provider.wechat.short': 'WeChat',
     'commerce.payment.provider.wechat.mark': 'W',
