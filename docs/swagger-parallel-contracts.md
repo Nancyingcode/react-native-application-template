@@ -270,3 +270,14 @@ T6→T7 仅 navigate('CommercePayment', {orderId})；T8→T9 把数量转十进�
 App 总测试增加取消退出、匿名 refreshToken 撤销请求、移除个人资料、503 不自动重放及失败结果可见的整链路断言。该测试使用模拟 HTTP，不代表真实服务联调。
 
 后续必须交付 T3–T11 所属页面、translations 与公开 port，补齐冻结 Swagger 快照及状态规则文件，再按既定依赖顺序装配商城。T12 保持部分完成状态，不能标记最终验收通过。
+
+
+## T12 第二批：T3＋T4 集成（2026-09-12）
+
+- 接收任务“实现 T3 Swagger 并行任务”的 `6aaac18` 和“实现 T4 Swagger 任务”的 `00ee447`，两者均基于 `1062043`。仅导入对应业务目录与测试差异，未合入无关分支或创建提交。
+- commerce 模块装配真实 CatalogRepository、SkuCartStore 与新页面；工厂在装配时创建一次，initialize 刷新购物车并监听账号变化，dispose 释放监听。详情只调用 addItem(skuId, quantity)，购物车徽标使用同一新 store，不再读取旧 productId 数量。
+- 商品详情提供购物车入口，访客购物车提供登录入口；登录不自动重放访客加购，需在购物车显式确认合并。
+- 保留原四个路由名与权限/品牌开关。Cedar 原配置不包含 commerce，仍不开放商城；其主题兼容预览不代表新增品牌功能。
+- T6 尚未交付：CommerceCheckout 显示本地“结算暂不可用”，可返回购物车；不会调用旧 /v1/commerce/orders 或旧支付接口。快照仍由 T4 捕获并持有，后续 T6 通过 snapshotId/owner 契约接入。不创建临时订单模型或假下单。
+- 旧 createCommerceScreens/repository/types 兼容导出保持，正式模块不再使用旧整车清空支付链路。T5–T11 与真实支付闭环仍待交付。
+- 已读取全局状态规则 `C:/Users/30728/.codex/global-rules/AGENTS_condition_rules.md`；核对主工作区冻结 Swagger 哈希为 `23cc5e607f8c8046f7a50b309e298cb22601be2d6a2250545d5134173909c5d0`，无契约漂移。

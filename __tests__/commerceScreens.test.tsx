@@ -38,13 +38,19 @@ describe('commerce screen integration', () => {
   }
 
   function selected(label: string, role: 'button' | 'tab'): boolean {
-    return renderer.root.findAllByProps({
-      accessibilityLabel: label,
-      accessibilityRole: role,
-    })[0].props.accessibilityState.selected;
+    return renderer.root
+      .findAllByProps({
+        accessibilityLabel: label,
+        accessibilityRole: role,
+      })
+      .find(item => item.props.accessibilityState?.selected !== undefined)!
+      .props.accessibilityState.selected;
   }
 
-  async function press(label: string, role: 'button' | 'tab' = 'button') {
+  async function press(
+    label: string,
+    role: 'button' | 'tab' | 'radio' = 'button',
+  ) {
     const button = renderer.root
       .findAllByProps({
         accessibilityLabel: label,
@@ -66,10 +72,58 @@ describe('commerce screen integration', () => {
     jest.restoreAllMocks();
   });
 
-  it('loads the catalog on entry, fetches details and adds a product with unknown stock', async () => {
+  it('connects SKU selection, guest merge, cart badges and the checkout boundary', async () => {
+    const sku = {
+      id: '8440fd60-f5e0-42ff-967c-2e9be0974f10',
+      productId: product.id,
+      name: 'Blue',
+      skuCode: 'BLUE',
+      attributes: {},
+      price: '129.0000',
+      originalPrice: null,
+      currency: 'CNY',
+      status: 'ACTIVE',
+    };
+    let quantity = 0;
+    const serverCart = () => ({
+      userId: 'shopper-1',
+      items: quantity
+        ? [
+            {
+              id: '8440fd60-f5e0-42ff-967c-2e9be0974f11',
+              skuId: sku.id,
+              productId: product.id,
+              productName: product.name,
+              skuName: sku.name,
+              quantity,
+              selected: true,
+              currentPrice: sku.price,
+              currency: sku.currency,
+              available: 10,
+              saleable: true,
+              inStock: true,
+              valid: true,
+              invalidReason: null,
+            },
+          ]
+        : [],
+    });
     const fetcher = jest
       .spyOn(global, 'fetch')
-      .mockImplementation(async url => {
+      .mockImplementation(async (url, options) => {
+        if (String(url).endsWith(`/api/v1/products/${product.id}/skus`))
+          return response([sku]);
+        if (String(url).endsWith(`/api/v1/skus/${sku.id}`))
+          return response(sku);
+        if (String(url).endsWith('/api/v1/cart/items')) {
+          expect(JSON.parse(String(options?.body))).toEqual({
+            skuId: sku.id,
+            quantity: 1,
+          });
+          quantity += 1;
+          return response(serverCart());
+        }
+        if (String(url).endsWith('/api/v1/cart')) return response(serverCart());
         if (String(url).endsWith('/api/v1/auth/login')) {
           return response({
             user: { id: 'shopper-1' },
@@ -121,18 +175,35 @@ describe('commerce screen integration', () => {
     );
     expect(hasText('暂无商品介绍')).toBe(true);
     expect(hasText('图片暂不可用')).toBe(true);
-    expect(hasText('库存')).toBe(false);
+    expect(hasText('库存未知')).toBe(true);
     expect(selected('更多', 'tab')).toBe(true);
     await press('更多', 'tab');
     expect(selected('商城', 'button')).toBe(true);
     expect(selected('购物车', 'button')).toBe(false);
     await press('关闭');
+    await act(async () =>
+      renderer.root
+        .findAllByProps({ accessibilityRole: 'radio' })
+        .find(item => typeof item.props.onPress === 'function')!
+        .props.onPress(),
+    );
     await press('加入购物车');
-    await press('已加入购物车 · 去结算');
-    expect(hasText('共 1 件商品')).toBe(true);
-    expect(hasText('129.00')).toBe(true);
-    await press('去结算');
-    expect(hasText('账号密码登录')).toBe(true);
+    expect(
+      fetcher.mock.calls.some(
+        ([url]) =>
+          String(url).includes('/inventory/') ||
+          String(url).endsWith('/cart/items'),
+      ),
+    ).toBe(false);
+    await press('更多', 'tab');
+    await press('商城');
+    await press('购物车，1 件商品');
+    expect(hasText('Blue')).toBe(true);
+    await press('登录', 'tab');
+    const loginOption = renderer.root
+      .findAllByProps({ testID: 'login-option-login.accountPassword' })
+      .find(item => typeof item.props.onPress === 'function')!;
+    await act(async () => loginOption.props.onPress());
     await act(async () => {
       renderer.root
         .findByProps({ testID: 'account-login-account' })
@@ -148,9 +219,21 @@ describe('commerce screen integration', () => {
     });
     await press('更多', 'tab');
     await press('购物车');
-    expect(hasText('共 1 件商品')).toBe(true);
+    expect(quantity).toBe(0);
+    await press('确认合并 / 继续失败项');
+    expect(quantity).toBe(1);
+    await press('更多', 'tab');
+    await press('商城');
+    await press('购物车，1 件商品');
     await press('去结算');
-    expect(hasText('确认订单')).toBe(true);
+    expect(hasText('结算暂不可用')).toBe(true);
+    expect(
+      fetcher.mock.calls.some(
+        ([url]) =>
+          String(url).includes('/v1/commerce/') ||
+          String(url).endsWith('/api/v1/orders'),
+      ),
+    ).toBe(false);
     expect(selected('更多', 'tab')).toBe(true);
     await press('更多', 'tab');
     expect(selected('购物车', 'button')).toBe(true);

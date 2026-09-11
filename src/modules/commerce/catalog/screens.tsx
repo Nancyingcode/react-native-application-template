@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -11,11 +11,13 @@ import {
 } from 'react-native';
 import { useApplication } from '../../../app/ApplicationProvider';
 import { useAppNavigation, useRouteParams } from '../../../app/navigation';
-import { CartStore, useCart } from '../CartStore';
+import { CartStore } from '../CartStore';
 import { formatMoney } from '../catalog';
 import type { CommerceRepository } from '../repository';
 import { EmptyState, PrimaryButton, ProductImage } from '../shared/ui';
 import { useProduct, useProducts } from '../useProducts';
+import { SearchPanel } from './SearchPanel';
+import { SkuPicker, type CatalogIntegration } from './SkuPicker';
 function useProductGridLayout() {
   const { width } = useWindowDimensions();
   const columns = width >= 768 ? 3 : 2;
@@ -34,11 +36,35 @@ function useProductGridLayout() {
 export function createCatalogScreens(
   repository: Pick<CommerceRepository, 'listProducts' | 'getProduct'>,
   cart: CartStore,
+  integration?: CatalogIntegration,
 ) {
   function ProductListScreen(): React.JSX.Element {
+    const [searching, setSearching] = useState(false);
+    if (searching && integration) {
+      return (
+        <SearchPanel
+          repository={integration.repository}
+          onClose={() => setSearching(false)}
+        />
+      );
+    }
+    return <CatalogProductListScreen onSearch={() => setSearching(true)} />;
+  }
+
+  function CatalogProductListScreen({
+    onSearch,
+  }: {
+    onSearch(): void;
+  }): React.JSX.Element {
     const { brand, locale, services } = useApplication();
     const navigate = useAppNavigation();
-    const snapshot = useCart(cart);
+    const itemCount = useSyncExternalStore(
+      integration?.cartSummary?.subscribe ?? cart.subscribe,
+      integration?.cartSummary?.getItemCount ??
+        (() => cart.getSnapshot().itemCount),
+      integration?.cartSummary?.getItemCount ??
+        (() => cart.getSnapshot().itemCount),
+    );
     const layout = useProductGridLayout();
     const catalog = useProducts(repository, services.monitor);
     const colors = brand.theme.colors;
@@ -62,7 +88,7 @@ export function createCatalogScreens(
           <Pressable
             accessibilityLabel={services.i18n.t(
               'commerce.products.cart.accessibilityLabel',
-              { count: snapshot.itemCount },
+              { count: itemCount },
             )}
             accessibilityRole="button"
             onPress={() => navigate('CommerceCart')}
@@ -77,11 +103,26 @@ export function createCatalogScreens(
           >
             <Text style={styles.cartPillText}>
               {services.i18n.t('commerce.products.cart.label', {
-                count: snapshot.itemCount,
+                count: itemCount,
               })}
             </Text>
           </Pressable>
         </View>
+        {integration ? (
+          <View
+            style={[
+              styles.catalogNoticeContainer,
+              styles.searchEntry,
+              { paddingHorizontal: layout.padding },
+            ]}
+          >
+            <PrimaryButton
+              label={services.i18n.t('commerce.products.search.submit')}
+              onPress={onSearch}
+              compact
+            />
+          </View>
+        ) : null}
         {catalog.error && catalog.products.length > 0 ? (
           <View
             style={[
@@ -289,19 +330,39 @@ export function createCatalogScreens(
             })}
           </Text>
         ) : null}
-        <PrimaryButton
-          label={services.i18n.t(
-            addedProductId === product.id
-              ? 'commerce.detail.addedToCart'
-              : 'commerce.detail.addToCart',
-          )}
-          onPress={
-            addedProductId === product.id
-              ? () => navigate('CommerceCart')
-              : addToCart
-          }
-          disabled={product.inventory === 0}
-        />
+        {integration ? (
+          <>
+            <SkuPicker
+              key={product.id}
+              productId={product.id}
+              integration={integration}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={services.i18n.t('module.commerce.cart')}
+              onPress={() => navigate('CommerceCart')}
+              style={styles.backButton}
+            >
+              <Text style={[styles.back, { color: colors.primary }]}>
+                {services.i18n.t('module.commerce.cart')}
+              </Text>
+            </Pressable>
+          </>
+        ) : (
+          <PrimaryButton
+            label={services.i18n.t(
+              addedProductId === product.id
+                ? 'commerce.detail.addedToCart'
+                : 'commerce.detail.addToCart',
+            )}
+            onPress={
+              addedProductId === product.id
+                ? () => navigate('CommerceCart')
+                : addToCart
+            }
+            disabled={product.inventory === 0}
+          />
+        )}
       </ScrollView>
     );
   }
@@ -374,6 +435,7 @@ function ProductListFooter({
 }
 
 const styles = StyleSheet.create({
+  searchEntry: { paddingTop: 16 },
   screen: { flex: 1 },
   loading: { flex: 1 },
   catalogLoading: { paddingVertical: 64 },

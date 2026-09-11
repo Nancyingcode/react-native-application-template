@@ -2,7 +2,7 @@
 
 核对时间：2026-09-08。来源：http://localhost:3000/docs/ 的 swagger-ui-init.js 内嵌 OpenAPI，标题 Mobile Mall Backend API，版本 1.0。共 83 个 HTTP 操作，其中 21 个 /admin/ 操作。本次快照保存在 artifacts/swagger-latest.json（忽略目录）；版本号未体现接口增量，实施前应保存同一份契约快照供所有任务使用。
 
-本清单规划当前 React Native 客户端的实现和对接；T0 已完成保持行为不变的代码提取，其余业务任务尚未启动，未提交、推送或创建任务。现有登录、注册、Token 刷新、个人资料、商品列表/详情已有接入，保留并回归。docs/api-integration.md 的 13 接口基线已过时，不应继续据此认定缺少下单、SKU、短信等接口。
+本清单规划当前 React Native 客户端的实现和对接；当前工作区已完成 T0，并由 T12 分批接入 T1/T2 与 T3/T4，T5–T11 尚待交付。最新装配和验收范围见文末第二批记录。现有登录、注册、Token 刷新、个人资料、商品列表/详情已有接入，保留并回归。docs/api-integration.md 的 13 接口基线已过时，不应继续据此认定缺少下单、SKU、短信等接口。
 
 ## 执行方式：一个前置任务 + 十一个业务任务 + 一个集成任务
 
@@ -177,3 +177,30 @@ App 总测试增加取消退出、匿名 refreshToken 撤销请求、移除个�
 - 退出失败回归发现并修复公共 HttpClient 对空/非 JSON/null 错误响应解引用异常，保留原 HTTP 状态与 HTTP_ERROR；新增三项覆盖，不改变重试策略。
 - 本工作区起初没有 node_modules，通过现有 package-lock 安装开发依赖，未新增生产依赖或修改 lock。
 - `adb devices` 没有连接设备；本批未执行两品牌/双语/六宽度真实渲染、原生包或真实后端联调。上述检查不构成 T12 最终验收。
+
+
+## T12 第二批：T3＋T4 集成（2026-09-12）
+
+- 接收任务“实现 T3 Swagger 并行任务”的 `6aaac18` 和“实现 T4 Swagger 任务”的 `00ee447`，两者均基于 `1062043`。仅导入对应业务目录与测试差异，未合入无关分支或创建提交。
+- commerce 模块装配真实 CatalogRepository、SkuCartStore 与新页面；工厂在装配时创建一次，initialize 刷新购物车并监听账号变化，dispose 释放监听。详情只调用 addItem(skuId, quantity)，购物车徽标使用同一新 store，不再读取旧 productId 数量。
+- 商品详情提供购物车入口，访客购物车提供登录入口；登录不自动重放访客加购，需在购物车显式确认合并。
+- 保留原四个路由名与权限/品牌开关。Cedar 原配置不包含 commerce，仍不开放商城；其主题兼容预览不代表新增品牌功能。
+- T6 尚未交付：CommerceCheckout 显示本地“结算暂不可用”，可返回购物车；不会调用旧 /v1/commerce/orders 或旧支付接口。快照仍由 T4 捕获并持有，后续 T6 通过 snapshotId/owner 契约接入。不创建临时订单模型或假下单。
+- 旧 createCommerceScreens/repository/types 兼容导出保持，正式模块不再使用旧整车清空支付链路。T5–T11 与真实支付闭环仍待交付。
+- 已读取全局状态规则 `C:/Users/30728/.codex/global-rules/AGENTS_condition_rules.md`；核对主工作区冻结 Swagger 哈希为 `23cc5e607f8c8046f7a50b309e298cb22601be2d6a2250545d5134173909c5d0`，无契约漂移。
+
+
+### 第二批验收与限制
+
+- 最终 `npm run typecheck`、`npm run lint`、`npm test -- --watch=false`、`git diff --check` 通过；44 套、512 项测试。正式 Android/iOS JS Bundle 均通过，使用原配置，在沙箱外执行 Metro 子进程。
+- 公共集成测试走实际模块装配、HttpClient、SessionManager 与 T3/T4 实现，验证访客 SKU 加购、登录不自动上传、显式合并、徽标同步、结算不调用旧协议；补充品牌路由过滤和模块销毁后不再监听账号变化的测试。所有网络响应为模拟数据。
+- 启动本机 Expo_API_36 模拟器，独立 artifacts 验收入口加载正式页面，以模拟 HTTP 数据完成购物车 375/768/1024/1280/1440/1920 宽度、两主题中英文 24 组截图；查看目录/搜索/详情 375 与 1920 宽度。Cedar 仅借用主题预览，正式 Cedar 仍无 commerce 模块且只支持英文。
+- 实际渲染发现数量按钮误将完整无障碍说明作为视觉文字；已改为 −/+，保留完整 accessibilityLabel，统一 44px 点击区域并加强复选状态边框/文字颜色。补充详情去购物车、访客去登录入口。
+- 截图、脚本位于忽略目录 artifacts/t12-visual 与 artifacts/t12-*.py/js/cjs/json。直接把目录设为测试启动页时曾出现超宽首帧空白；从页面导航返回目录可正常渲染，不以该空白截图作为视觉通过证据。
+- 没有真实后台购物车写入、短信、下单或支付联调；JS Bundle 不代表原生重建/iOS 真机验收。金额单位、合并跨重启持久化与 T5–T11 后续依赖仍按冻结契约处理。T12 继续保持分批集成状态。
+
+
+原生补验：已从正式首页导航进入 1920 宽度商品目录，确认实际页面渲染正常（artifacts/t12-visual/aurora-zh-CN-1920-catalog.png）。完成空态、错误态、清空确认与取消、数量 2→3、结算暂不可用及返回购物车检查。测试入口首帧截图异常保留为验收工具限制，不声称它已被业务代码修复。
+
+
+加载态补验：真实截图发现首次读取期间同时出现空态提示，已改为仅在 `!busy && !error` 时展示空购物车，并新增加载→失败→成功空结果的回归。最后这项互斥修正已通过测试与双平台 Bundle，截图保留修正前证据，未将其冒充修正后的截图。本次模拟器显示尺寸/密度已恢复，验收应用与 Metro 已停止；无 commit/push。

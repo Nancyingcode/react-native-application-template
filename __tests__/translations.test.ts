@@ -2,6 +2,7 @@ import aurora from '../brands/aurora/brand.config.json';
 import cedar from '../brands/cedar/brand.config.json';
 import type { BrandConfig } from '../src/brand/types';
 import type { CoreServices } from '../src/core/services';
+import { InMemorySessionStore, SessionManager } from '../src/core/auth';
 import { authModule } from '../src/modules/auth';
 import { commerceModule } from '../src/modules/commerce';
 import { formatMoney, getDemoProducts } from '../src/modules/commerce/catalog';
@@ -32,7 +33,9 @@ describe('translation catalogs', () => {
     factory => {
       const module = factory.create({
         brand: aurora as BrandConfig,
-        services: {} as CoreServices,
+        services: {
+          session: new SessionManager(new InMemorySessionStore()),
+        } as CoreServices,
       });
       const chinese = module.translations?.['zh-CN'];
       const english = module.translations?.['en-US'];
@@ -44,6 +47,7 @@ describe('translation catalogs', () => {
       );
       expect(Object.values(chinese ?? {}).every(Boolean)).toBe(true);
       expect(Object.values(english ?? {}).every(Boolean)).toBe(true);
+      module.dispose?.();
     },
   );
 

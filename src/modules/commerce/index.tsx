@@ -3,25 +3,58 @@ import { cartTranslations } from './cart/translations';
 import { CartStore } from './CartStore';
 import { catalogTranslations } from './catalog/translations';
 import { checkoutTranslations } from './checkout/translations';
-import { PaymentLauncher } from './payment';
 import { paymentsTranslations } from './payments/translations';
 import { CommerceRepository } from './repository';
-import { createCommerceScreens } from './screens';
+import { createCatalogScreens } from './catalog/screens';
+import { CatalogRepository } from './catalog/api';
+import { CartRepository, SkuCartStore, createSkuCartScreen } from './cart';
+import { CheckoutUnavailableScreen } from './shared/CheckoutUnavailableScreen';
 
 export const commerceModule: AppModuleFactory = {
   id: 'commerce',
   create: ({ services }) => {
     const cart = new CartStore();
     const repository = new CommerceRepository(services.http);
-    const screens = createCommerceScreens(
-      repository,
-      cart,
-      new PaymentLauncher(services.native),
+    const skuCart = new SkuCartStore(
+      new CartRepository(services.http),
+      services.session,
     );
+    const screens = createCatalogScreens(repository, cart, {
+      repository: new CatalogRepository(services.http),
+      addItem: skuCart.addItem,
+      cartSummary: {
+        subscribe: skuCart.subscribe,
+        getItemCount: () => {
+          const state = skuCart.getSnapshot();
+          const items = state.owner.userId ? state.items : state.guests;
+          return items.reduce((count, item) => count + item.quantity, 0);
+        },
+      },
+    });
+    const CartScreen = createSkuCartScreen(skuCart, cart);
+    let unsubscribe: (() => void) | undefined;
 
     return {
       id: 'commerce',
       version: '1.0.0',
+      initialize: () => {
+        let owner = skuCart.getSnapshot().owner;
+        const refresh = () => {
+          skuCart.refresh().catch(() => undefined);
+        };
+        refresh();
+        unsubscribe = services.session.subscribe(() => {
+          const current = skuCart.getSnapshot().owner;
+          if (current !== owner) {
+            owner = current;
+            refresh();
+          }
+        });
+      },
+      dispose: () => {
+        unsubscribe?.();
+        skuCart.dispose();
+      },
       routes: [
         {
           name: 'CommerceProducts',
@@ -38,13 +71,13 @@ export const commerceModule: AppModuleFactory = {
         {
           name: 'CommerceCart',
           titleKey: 'module.commerce.cart',
-          component: screens.CartScreen,
+          component: CartScreen,
           feature: 'commerce',
         },
         {
           name: 'CommerceCheckout',
           titleKey: 'module.commerce.checkout',
-          component: screens.CheckoutScreen,
+          component: CheckoutUnavailableScreen,
           feature: 'commerce',
           requiresAuth: true,
         },
@@ -84,6 +117,10 @@ export const commerceModule: AppModuleFactory = {
           'module.commerce.detail': '商品详情',
           'module.commerce.cart': '购物车',
           'module.commerce.checkout': '收银台',
+          'commerce.checkout.unavailable.title': '结算暂不可用',
+          'commerce.checkout.unavailable.description':
+            '购物车已保留，请稍后再试。',
+          'commerce.checkout.unavailable.back': '返回购物车',
 
           'commerce.retry': '重试',
 
@@ -102,6 +139,10 @@ export const commerceModule: AppModuleFactory = {
           'module.commerce.detail': 'Product',
           'module.commerce.cart': 'Cart',
           'module.commerce.checkout': 'Checkout',
+          'commerce.checkout.unavailable.title': 'Checkout is unavailable',
+          'commerce.checkout.unavailable.description':
+            'Your cart is saved. Please try again later.',
+          'commerce.checkout.unavailable.back': 'Back to cart',
 
           'commerce.retry': 'Retry',
 
