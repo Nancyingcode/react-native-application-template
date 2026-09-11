@@ -1,5 +1,7 @@
 # OTA 原生持久化回归
 
+P5 额外验证：原生下载/暂存回执、确认写入失败不报告成功、回执 UUID 跨重建不变、下一启动补报未确认与恢复、ACK 后不重复生成，以及两个 app_process 间保留 P5 回执。仍执行真实 APK 的 OtaStore，网络/资源和故障注入是 fixture，不能等同于完整 App 或真实 HTTPS 设备测试。
+
 基于 P0 `OtaNativeProbe.java` 扩展，直接通过 Android `app_process` 加载 Release APK 内的实际 `OtaStore`。没有复制状态机，没有修改生产 API 或为测试放宽签名/兼容性检查。
 
 在 Windows、JDK 17、Android SDK 36 和已启动的 API 36 模拟器上，从项目根目录执行：

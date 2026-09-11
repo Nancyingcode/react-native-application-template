@@ -1,5 +1,17 @@
 # Bundle 拆分与 OTA 版本管理
 
+## P5 执行遥测
+
+平台接入详见 [P5 事件协议、队列和统计](../../over-the-air-platform/docs/P5-telemetry.md)与 [分层验证记录](../../over-the-air-platform/docs/P5-validation.md)。本节新增遥测能力不改变以下签名、兼容性、防重放或恢复协议。
+
+使用品牌的 HTTPS `otaQueryUrl`。首页检查读取原生持久化 installationId，调用 queryUpdate 并通过 rememberAssignment 保存分配上下文；用户显式点击下载后，ota.stage 自动消费对应上下文，调用可选 stageTracked。原生在实际下载请求前记录 download_started、暂存状态持久化时记录 staged、异常时记录固定下载失败码。模块初始化完成后的既有 markSuccessful 点不移动；只有原生成功持久化 trial 清除时才记录 confirmed。下次可运行启动从原生回执补出 startup_unconfirmed/restored。
+
+新增可选状态字段 telemetryVersion、receipts、droppedReceipts。Android/iOS 原生接口新增 stageTracked、readTelemetry、writeTelemetry、ackTelemetry，原方法全部保留；状态新增可选追踪字段，对旧文件向后兼容。必须构建新原生包，且依既有指纹形成新 runtime；老包不产生可靠执行报告。
+
+ExecutionQueue 使用原生原子文件保存、最多 64 条 / 128 KiB，每批最多 20 条；前台每 30 秒检查、失败退避 60 秒至 1 小时，最多 12 次自动尝试。永久拒绝/次数耗尽后保留事件但暂停自动发送。只有服务端 accepted ID 才移除；失败不影响 OTA 主流程。原生回执最多 64 条并记录溢出计数。这里没有无限离线可靠性承诺，也不把停留下载/陈旧数据当作升级失败。
+
+验收命令仍为 npm run typecheck、npm run lint、npm test。Android 可按 tests/native/ota/README.md 构建 unsigned Release 并运行真实 OtaStore 探针；平台 test:e2e 使用本项目生产查询/队列做真实 HTTPS 联调，原生输入是明确的 fixture，不代表完整设备冷启动链路。iOS 原生未在 Windows 验证。
+
 ## 拆分边界
 
 Release 构建统一经过 `scripts/bundle-cli.js` 和 Metro serializer，输出：

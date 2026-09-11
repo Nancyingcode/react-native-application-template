@@ -33,6 +33,11 @@ private struct OtaState: Codable {
   var trial = 0
   var highest = 0
   var failed = 0
+  var tracking: String?
+  var receipts: [String]?
+  var receiptKinds: [String]?
+  var droppedReceipts: Int?
+  var recoveryError: String?
 }
 
 private func otaError(_ message: String) -> NSError {
@@ -126,7 +131,35 @@ final class OtaStore {
       .flatMap { try? JSONDecoder().decode(OtaState.self, from: $0) } ?? OtaState()
   }
 
-  private func save(_ nextState: OtaState) throws {
+  private func receipt(_ next: inout OtaState, _ kind: String, _ sequence: Int, _ running: Int, _ error: String? = nil) {
+    guard let raw = next.tracking, let data = raw.data(using: .utf8),
+      let tracking = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+    if (next.receiptKinds ?? []).contains(kind) { return }
+    var receipts = next.receipts ?? []
+    for raw in receipts {
+      if let data = raw.data(using: .utf8), let item = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        let context = item["context"] as? [String: Any], let event = item["event"] as? [String: Any],
+        context["attemptId"] as? String == tracking["attemptId"] as? String, event["kind"] as? String == kind { return }
+    }
+    var event: [String: Any] = ["eventId": UUID().uuidString.lowercased(), "protocolVersion": 1,
+      "sequence": sequence, "kind": kind, "occurredAt": ISO8601DateFormatter().string(from: Date()),
+      "runningVersion": running, "highestVersion": next.highest]
+    if kind == "startup_unconfirmed" { event["runningVersion"] = NSNull() }
+    if let error { event["errorCode"] = error }
+    if let bytes = try? JSONSerialization.data(withJSONObject: ["context": tracking, "event": event]) {
+      receipts.append(String(decoding: bytes, as: UTF8.self))
+      next.droppedReceipts = (next.droppedReceipts ?? 0) + max(0, receipts.count - 64)
+      next.receipts = Array(receipts.suffix(64))
+      next.receiptKinds = (next.receiptKinds ?? []) + [kind]
+    }
+  }
+
+  private func save(_ candidate: OtaState) throws {
+    var nextState = candidate
+    if nextState.pending > state.pending { receipt(&nextState, "staged", 20, runningVersion) }
+    let trialEnded = state.trial != 0 && nextState.trial == 0
+    if trialEnded && nextState.failed == state.trial { receipt(&nextState, "startup_unconfirmed", 40, nextState.current, "STARTUP_UNCONFIRMED") }
+    else if trialEnded && runningVersion == state.trial { receipt(&nextState, "confirmed", 50, runningVersion) }
     try JSONEncoder().encode(nextState).write(to: root.appendingPathComponent("state.json"), options: .atomic)
     // Failed persistence must leave pending/trial available for retry and recovery.
     state = nextState
@@ -162,10 +195,29 @@ final class OtaStore {
     }
   }
 
+  private var stageContext: String?
+  private func recordAttempt(_ kind: String, _ sequence: Int, _ error: String? = nil) {
+    guard stageContext != nil else { return }
+    var next = state
+    let previousTracking = next.tracking
+    let previousKinds = next.receiptKinds
+    next.tracking = stageContext; next.receiptKinds = []
+    receipt(&next, kind, sequence, runningVersion, error)
+    next.tracking = previousTracking; next.receiptKinds = previousKinds
+    // Preserve download behavior even when the telemetry journal cannot be written.
+    try? save(next)
+  }
+  func stageTracked(_ address: String, _ context: String) throws -> Int {
+    lock.lock(); defer { stageContext = nil; lock.unlock() }
+    stageContext = context
+    do { return try stage(address) }
+    catch { recordAttempt("download_failed", 30, "DOWNLOAD_OR_STAGE_FAILED"); throw error }
+  }
   func stage(_ address: String) throws -> Int {
     lock.lock(); defer { lock.unlock() }
     guard baseline != nil, publicKey != nil else { throw otaError("OTA not enabled for this package") }
     guard state.pending == 0, state.trial == 0 else { throw otaError("An OTA update is awaiting confirmation or restart") }
+    recordAttempt("download_started", 10)
     let envelope = try OtaDownload(limit: 65536).fetch(address)
     let manifest = try verifyEnvelope(envelope)
     guard manifest.bundleVersion > state.highest, let url = manifest.businessUrl else {
@@ -178,6 +230,8 @@ final class OtaStore {
     try business.write(to: target.appendingPathComponent("business.bundle"), options: .atomic)
     try envelope.write(to: target.appendingPathComponent("release.json"), options: .atomic)
     var nextState = state
+    nextState.tracking = stageContext
+    nextState.receiptKinds = []
     nextState.pending = manifest.bundleVersion
     nextState.highest = manifest.bundleVersion
     try save(nextState)
@@ -214,6 +268,7 @@ final class OtaStore {
       var nextState = state
       if nextState.trial != 0 {
         nextState.failed = nextState.trial
+        nextState.recoveryError = "STARTUP_UNCONFIRMED"
         nextState.current = nextState.previous
         nextState.previous = 0
         nextState.trial = 0
@@ -230,6 +285,7 @@ final class OtaStore {
       catch {
         var fallback = state
         fallback.failed = runningVersion
+        fallback.recoveryError = "LOCAL_BUNDLE_INVALID"
         fallback.current = state.previous
         fallback.previous = 0
         fallback.trial = 0
@@ -247,6 +303,15 @@ final class OtaStore {
         }
       }
     } catch { runningVersion = 0; selectedURL = nil }
+    if let raw = state.tracking, let data = raw.data(using: .utf8),
+      let tracking = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let target = tracking["targetVersion"] as? Int, target > 0, state.highest >= target,
+      state.pending == 0, state.trial == 0, state.current == runningVersion, runningVersion < target {
+      // Reporting failure cannot alter the selected bundle or the recovery decision.
+      var next = state
+      receipt(&next, "restored", 60, runningVersion, state.recoveryError ?? "STARTUP_UNCONFIRMED")
+      try? save(next)
+    }
     return selectedURL
   }
 
@@ -260,9 +325,43 @@ final class OtaStore {
     return true
   }
 
+  private var telemetryURL: URL { root.deletingLastPathComponent().appendingPathComponent("telemetry.json") }
+  func readTelemetry() throws -> String {
+    lock.lock(); defer { lock.unlock() }
+    if FileManager.default.fileExists(atPath: telemetryURL.path) { return String(decoding: try Data(contentsOf: telemetryURL), as: UTF8.self) }
+    let data = try JSONSerialization.data(withJSONObject: ["installationId": UUID().uuidString.lowercased(), "queue": []] as [String: Any])
+    let value = String(decoding: data, as: UTF8.self)
+    _ = try writeTelemetry(value)
+    return value
+  }
+  func writeTelemetry(_ value: String) throws -> Bool {
+    lock.lock(); defer { lock.unlock() }
+    guard let data = value.data(using: .utf8), data.count <= 131072 else { throw otaError("Telemetry capacity exceeded") }
+    _ = try JSONSerialization.jsonObject(with: data)
+    try data.write(to: telemetryURL, options: .atomic)
+    var url = telemetryURL
+    var excluded = URLResourceValues(); excluded.isExcludedFromBackup = true
+    try? url.setResourceValues(excluded)
+    return true
+  }
+  func ackTelemetry(_ value: String) throws -> Bool {
+    lock.lock(); defer { lock.unlock() }
+    let ids = try JSONSerialization.jsonObject(with: Data(value.utf8)) as? [String] ?? []
+    var next = state
+    next.receipts = (state.receipts ?? []).filter { raw in
+      guard let data = raw.data(using: .utf8), let item = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        let event = item["event"] as? [String: Any], let id = event["eventId"] as? String else { return true }
+      return !ids.contains(id)
+    }
+    try save(next)
+    return true
+  }
   func status() throws -> String {
     lock.lock(); defer { lock.unlock() }
     let values: [String: Any] = [
+      "telemetryVersion": 1,
+      "droppedReceipts": state.droppedReceipts ?? 0,
+      "receipts": (state.receipts ?? []).compactMap { $0.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) } },
       "supported": baseline != nil && publicKey != nil,
       "runtimeVersion": baseline?.runtimeVersion ?? "", "baseVersion": baseline?.baseVersion ?? "",
       "currentVersion": runningVersion, "pendingVersion": state.pending, "previousVersion": state.previous,
@@ -292,6 +391,22 @@ final class OtaBundle: NSObject {
   @objc(stage:resolver:rejecter:)
   func stage(_ url: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
     run(resolve, reject) { try OtaStore.shared.stage(url) }
+  }
+  @objc(stageTracked:context:resolver:rejecter:)
+  func stageTracked(_ url: String, context: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    run(resolve, reject) { try OtaStore.shared.stageTracked(url, context) }
+  }
+  @objc(readTelemetry:rejecter:)
+  func readTelemetry(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    run(resolve, reject) { try OtaStore.shared.readTelemetry() }
+  }
+  @objc(writeTelemetry:resolver:rejecter:)
+  func writeTelemetry(_ value: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    run(resolve, reject) { try OtaStore.shared.writeTelemetry(value) }
+  }
+  @objc(ackTelemetry:resolver:rejecter:)
+  func ackTelemetry(_ value: String, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+    run(resolve, reject) { try OtaStore.shared.ackTelemetry(value) }
   }
   @objc(markSuccessful:rejecter:)
   func markSuccessful(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {

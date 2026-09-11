@@ -28,6 +28,7 @@ import {
 } from './assembleApplication';
 import { useAnalyticsLifecycle } from './useAnalyticsLifecycle';
 import { ota } from '../core/ota';
+import { startOtaTelemetry } from '../core/ota/telemetry';
 import { startThreadWatchdog } from '../core/threadWatchdog';
 
 interface ApplicationContextValue {
@@ -87,6 +88,7 @@ export function ApplicationProvider({
 
   useAnalyticsLifecycle(services.analytics);
   useEffect(() => startThreadWatchdog(services.monitor), [services]);
+  useEffect(() => startOtaTelemetry(), []);
 
   const setLocale = useCallback(
     (nextLocale: string): void => {

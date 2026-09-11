@@ -1,9 +1,11 @@
 import { NativeModules } from 'react-native';
 import type { OtaStatus } from './types';
+import { takeAssignment, collectTelemetry } from './telemetry';
 
 interface OtaNativeModule {
   getStatus(): Promise<string>;
   stage(manifestUrl: string): Promise<number>;
+  stageTracked?(manifestUrl: string, context: string): Promise<number>;
   markSuccessful(): Promise<boolean>;
 }
 
@@ -20,9 +22,19 @@ export const ota = {
   async stage(manifestUrl: string): Promise<number> {
     if (!/^https:\/\//.test(manifestUrl))
       throw new Error('OTA manifest URL must use HTTPS');
-    return nativeModule().stage(manifestUrl);
+    const module = nativeModule();
+    const context = await takeAssignment(manifestUrl);
+    if (!context || !module.stageTracked) return module.stage(manifestUrl);
+    try {
+      return await module.stageTracked(manifestUrl, JSON.stringify(context));
+    } finally {
+      collectTelemetry().catch(() => undefined);
+    }
   },
   async markSuccessful(): Promise<void> {
-    if (!__DEV__) await nativeModule().markSuccessful();
+    if (!__DEV__) {
+      await nativeModule().markSuccessful();
+      collectTelemetry().catch(() => undefined);
+    }
   },
 };

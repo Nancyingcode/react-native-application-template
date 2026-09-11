@@ -20,6 +20,10 @@ class OtaModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(c
   }
   @ReactMethod fun getStatus(promise: Promise) = run(promise) { store.status() }
   @ReactMethod fun stage(url: String, promise: Promise) = run(promise) { store.stage(url) }
+  @ReactMethod fun stageTracked(url: String, context: String, promise: Promise) = run(promise) { store.stageTracked(url, context) }
+  @ReactMethod fun readTelemetry(promise: Promise) = run(promise) { store.readTelemetry() }
+  @ReactMethod fun writeTelemetry(value: String, promise: Promise) = run(promise) { store.writeTelemetry(value) }
+  @ReactMethod fun ackTelemetry(value: String, promise: Promise) = run(promise) { store.ackTelemetry(value) }
   @ReactMethod fun markSuccessful(promise: Promise) = run(promise) { store.markSuccessful() }
   override fun invalidate() { executor.shutdown(); super.invalidate() }
 }

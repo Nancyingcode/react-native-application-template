@@ -28,7 +28,9 @@ public class OtaNativeProbe {
     return Class.forName("com.whitelabelapp.ota.OtaStore").getConstructor(Context.class).newInstance(new FixtureContext(dir));
   }
   static Object call(Object store, String name, Object... args) throws Exception {
-    try { return store.getClass().getMethod(name, args.length == 0 ? new Class<?>[0] : new Class<?>[]{String.class}).invoke(store,args); }
+    Class<?>[] types = new Class<?>[args.length];
+    java.util.Arrays.fill(types, String.class);
+    try { return store.getClass().getMethod(name, types).invoke(store,args); }
     catch(InvocationTargetException e) { throw (Exception)e.getCause(); }
   }
   static JSONObject status(Object s) throws Exception { return new JSONObject((String)call(s,"status")); }
@@ -67,7 +69,9 @@ public class OtaNativeProbe {
     if(args.length>1) {
       File checkpoint=new File(root,"process-recovery");
       if(args[1].equals("checkpoint")) {
-        Object store=confirmed(checkpoint); stage(store,"v2"); store=fresh(checkpoint); call(store,"selectBundle");
+        Object store=confirmed(checkpoint); manifest="v2";
+        call(store,"stageTracked","https://p0.test/manifest",new JSONObject().put("attemptId",java.util.UUID.randomUUID().toString()).put("targetVersion",2).toString());
+        store=fresh(checkpoint); call(store,"selectBundle");
         JSONObject before=disk(checkpoint); File fault=block(checkpoint);
         confirmFails(store); unchanged(store,checkpoint,before); unblock(fault);
         pass("separate-process checkpoint retains failed confirmation trial");
@@ -75,6 +79,8 @@ public class OtaNativeProbe {
         Object store=fresh(checkpoint); check(memory(store).optInt("trial")==2,"trial missing across processes");
         call(store,"selectBundle"); check(status(store).getInt("currentVersion")==1 && status(store).getInt("failedVersion")==2,"process restart failed to recover");
         check(status(store).getInt("highestVersion")==2,"process restart lowered highest");
+        org.json.JSONArray evidence=status(store).getJSONArray("receipts");
+        check(evidence.length()==4 && evidence.getJSONObject(3).getJSONObject("event").getString("kind").equals("restored"),"P5 process restart lost native receipts");
         pass("new app_process recovers previous version after failed confirmation");
       }
       return;
@@ -98,7 +104,51 @@ public class OtaNativeProbe {
     mode="normal";stage(s,"valid");check(status(s).getInt("pendingVersion")==1,"network retry failed");pass("same process retries after network failure");
     try{stage(s,"v2");throw new AssertionError("pending overwrite");}catch(Exception e){check(e.getMessage().contains("awaiting"),e.toString());}pass("pending update cannot be overwritten");
     persistenceChecks();
+    telemetryChecks();
     System.out.println("RESULT "+passed+" native checks passed");
+  }
+  static void telemetryChecks() throws Exception {
+    File directory = dir(); Object store = fresh(directory);
+    String identity = new JSONObject((String)call(store,"readTelemetry")).getString("installationId");
+    check(identity.equals(new JSONObject((String)call(fresh(directory),"readTelemetry")).getString("installationId")), "installation identity not durable");
+    String tracking = new JSONObject().put("attemptId",java.util.UUID.randomUUID().toString()).put("targetVersion",1).toString();
+    manifest="valid";
+    call(store,"stageTracked","https://p0.test/manifest",tracking);
+    check(status(store).getJSONArray("receipts").length()==2,"missing staged receipt");
+    check(status(store).getJSONArray("receipts").getJSONObject(1).getJSONObject("event").getString("kind").equals("staged"),"stage claimed confirmation");
+    store=fresh(directory); call(store,"selectBundle");
+    File fault=block(directory); confirmFails(store);
+    check(status(store).getJSONArray("receipts").length()==2,"failed confirmation emitted success");
+    unblock(fault); call(store,"markSuccessful");
+    org.json.JSONArray receipts=status(store).getJSONArray("receipts");
+    check(receipts.length()==3 && receipts.getJSONObject(2).getJSONObject("event").getString("kind").equals("confirmed"),"confirmed receipt missing");
+    String confirmedId=receipts.getJSONObject(2).getJSONObject("event").getString("eventId");
+    store=fresh(directory);call(store,"selectBundle");
+    check(status(store).getJSONArray("receipts").getJSONObject(2).getJSONObject("event").getString("eventId").equals(confirmedId),"receipt ID changed on restart");
+    pass("P5 durable native confirmation only after successful state write");
+    tracking=new JSONObject().put("attemptId",java.util.UUID.randomUUID().toString()).put("targetVersion",2).toString();
+    manifest="v2";call(store,"stageTracked","https://p0.test/manifest",tracking);
+    store=fresh(directory);call(store,"selectBundle");
+    store=fresh(directory);call(store,"selectBundle");
+    receipts=status(store).getJSONArray("receipts");
+    check(receipts.length()==7,"missing recovery receipts");
+    JSONObject unconfirmed=receipts.getJSONObject(5).getJSONObject("event");
+    JSONObject restored=receipts.getJSONObject(6).getJSONObject("event");
+    check(unconfirmed.getString("kind").equals("startup_unconfirmed") && unconfirmed.isNull("runningVersion"),"unconfirmed claims actual running version");
+    check(restored.getString("kind").equals("restored") && restored.getInt("runningVersion")==1 && restored.getInt("highestVersion")==2,"recovery evidence incorrect");
+    org.json.JSONArray ids=new org.json.JSONArray();for(int i=0;i<receipts.length();i++)ids.put(receipts.getJSONObject(i).getJSONObject("event").getString("eventId"));
+    call(store,"ackTelemetry",ids.toString());store=fresh(directory);call(store,"selectBundle");
+    check(status(store).getJSONArray("receipts").length()==0,"acknowledged recovery regenerated");
+    pass("P5 next launch reports unconfirmed and restored; acknowledged IDs stay removed");
+    directory=dir();store=confirmed(directory);manifest="v2";
+    call(store,"stageTracked","https://p0.test/manifest",tracking);
+    store=fresh(directory);call(store,"selectBundle");
+    Files.write(new File(directory,"ota/p0-runtime/1/business.bundle").toPath(),new byte[]{0});
+    store=fresh(directory);call(store,"selectBundle");
+    receipts=status(store).getJSONArray("receipts");
+    restored=receipts.getJSONObject(receipts.length()-1).getJSONObject("event");
+    check(restored.getString("kind").equals("restored") && restored.getInt("runningVersion")==0,"secondary fallback lost target attempt");
+    pass("P5 recovery to embedded retains failed attempt when previous bundle is also corrupt");
   }
 
   static File stateFile(File d) { return new File(d,"ota/p0-runtime/state.json"); }

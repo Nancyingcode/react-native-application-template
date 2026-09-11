@@ -5,6 +5,9 @@ import android.util.AtomicFile
 import android.util.Base64
 import com.whitelabelapp.BuildConfig
 import org.json.JSONObject
+import org.json.JSONArray
+import java.util.UUID
+import java.time.Instant
 import java.io.File
 import java.net.URL
 import java.security.KeyFactory
@@ -30,7 +33,34 @@ class OtaStore(private val context: Context) {
     state = try { JSONObject(stateFile.openRead().bufferedReader().use { it.readText() }) } catch (_: Exception) { JSONObject() }
   }
 
+  private fun receipt(nextState: JSONObject, kind: String, sequence: Int, running: Int, error: String? = null) {
+    val tracking = nextState.optJSONObject("tracking") ?: return
+    val kinds = nextState.optJSONArray("receiptKinds") ?: JSONArray()
+    for (i in 0 until kinds.length()) if (kinds.getString(i) == kind) return
+    val events = nextState.optJSONArray("receipts") ?: JSONArray()
+    for (i in 0 until events.length()) {
+      val item = events.getJSONObject(i)
+      if (item.getJSONObject("context").optString("attemptId") == tracking.optString("attemptId") && item.getJSONObject("event").optString("kind") == kind) return
+    }
+    val event = JSONObject().put("eventId", UUID.randomUUID().toString()).put("protocolVersion", 1)
+      .put("sequence", sequence).put("kind", kind).put("occurredAt", Instant.now().toString())
+      .put("runningVersion", if (kind == "startup_unconfirmed") JSONObject.NULL else running).put("highestVersion", nextState.optInt("highest", 0))
+    if (error != null) event.put("errorCode", error)
+    events.put(JSONObject().put("context", tracking).put("event", event))
+    while (events.length() > 64) {
+      events.remove(0)
+      nextState.put("droppedReceipts", nextState.optInt("droppedReceipts", 0) + 1)
+    }
+    nextState.put("receipts", events)
+    kinds.put(kind)
+    nextState.put("receiptKinds", kinds)
+  }
+
   private fun save(nextState: JSONObject) {
+    if (nextState.optInt("pending", 0) > version("pending")) receipt(nextState, "staged", 20, runningVersion)
+    val trialEnded = version("trial") != 0 && nextState.optInt("trial", 0) == 0
+    if (trialEnded && nextState.optInt("failed", 0) == version("trial")) receipt(nextState, "startup_unconfirmed", 40, nextState.optInt("current", 0), "STARTUP_UNCONFIRMED")
+    else if (trialEnded && runningVersion == version("trial")) receipt(nextState, "confirmed", 50, runningVersion)
     val stream = stateFile.startWrite()
     try { stream.write(nextState.toString().toByteArray()); stateFile.finishWrite(stream) }
     catch (error: Exception) { stateFile.failWrite(stream); throw error }
@@ -95,9 +125,31 @@ class OtaStore(private val context: Context) {
     } finally { connection.disconnect() }
   }
 
+  private var stageContext: JSONObject? = null
+  private fun recordAttempt(kind: String, sequence: Int, error: String? = null) {
+    if (stageContext == null) return
+    // A telemetry write failure must not reject a valid download or replace its error.
+    try {
+      val next = JSONObject(state.toString())
+      val previousTracking = next.optJSONObject("tracking")
+      val previousKinds = next.optJSONArray("receiptKinds")
+      next.put("tracking", stageContext).put("receiptKinds", JSONArray())
+      receipt(next, kind, sequence, runningVersion, error)
+      next.put("tracking", previousTracking).put("receiptKinds", previousKinds)
+      save(next)
+    } catch (_: Exception) { }
+  }
+  @Synchronized fun stageTracked(url: String, context: String): Int {
+    stageContext = JSONObject(context)
+    try { return stage(url) }
+    catch (error: Exception) { recordAttempt("download_failed", 30, "DOWNLOAD_OR_STAGE_FAILED"); throw error }
+    finally { stageContext = null }
+  }
+
   @Synchronized fun stage(url: String): Int {
     check(baseline != null && publicKey.isNotEmpty()) { "OTA not enabled for this package" }
     check(version("trial") == 0 && version("pending") == 0) { "An OTA update is awaiting confirmation or restart" }
+    recordAttempt("download_started", 10)
     val envelope = readHttps(url, 65536)
     val manifest = verifyEnvelope(envelope)
     val next = manifest.getInt("bundleVersion")
@@ -111,7 +163,7 @@ class OtaStore(private val context: Context) {
       try { stream.write(business); file.finishWrite(stream) } catch (error: Exception) { file.failWrite(stream); throw error }
     }
     File(target, "release.json").writeBytes(envelope)
-    save(JSONObject(state.toString()).put("pending", next).put("highest", next))
+    save(JSONObject(state.toString()).put("pending", next).put("highest", next).put("tracking", stageContext).put("receiptKinds", JSONArray()))
     return next
   }
 
@@ -140,7 +192,7 @@ class OtaStore(private val context: Context) {
       // confirms readiness must restore the previous confirmed version.
       val nextState = JSONObject(state.toString())
       if (version("trial") != 0) {
-        nextState.put("failed", version("trial")).put("current", version("previous")).put("previous", 0).put("trial", 0)
+        nextState.put("failed", version("trial")).put("current", version("previous")).put("previous", 0).put("trial", 0).put("recoveryError", "STARTUP_UNCONFIRMED")
       }
       if (version("pending") != 0) {
         nextState.put("previous", nextState.optInt("current", 0)).put("current", version("pending")).put("trial", version("pending")).put("pending", 0)
@@ -149,7 +201,7 @@ class OtaStore(private val context: Context) {
       runningVersion = version("current")
       try { selectedPath = prepare(runningVersion) }
       catch (_: Exception) {
-        val fallback = JSONObject(state.toString()).put("failed", runningVersion).put("current", version("previous")).put("previous", 0).put("trial", 0)
+        val fallback = JSONObject(state.toString()).put("failed", runningVersion).put("current", version("previous")).put("previous", 0).put("trial", 0).put("recoveryError", "LOCAL_BUNDLE_INVALID")
         val fallbackPath = try { prepare(fallback.optInt("current", 0)) } catch (_: Exception) { fallback.put("current", 0); null }
         save(fallback)
         runningVersion = version("current")
@@ -157,6 +209,17 @@ class OtaStore(private val context: Context) {
       }
       cleanup()
     } catch (_: Exception) { runningVersion = 0; selectedPath = null }
+    val tracking = state.optJSONObject("tracking")
+    val targetVersion = tracking?.optInt("targetVersion", 0) ?: 0
+    val durableRecovery = targetVersion > 0 && version("highest") >= targetVersion && version("pending") == 0 && version("trial") == 0 && version("current") == runningVersion && runningVersion < targetVersion
+    if (durableRecovery) {
+      // Telemetry persistence must not change the already selected startup bundle.
+      try {
+        val nextState = JSONObject(state.toString())
+        receipt(nextState, "restored", 60, runningVersion, state.optString("recoveryError", "STARTUP_UNCONFIRMED"))
+        save(nextState)
+      } catch (_: Exception) { }
+    }
     return selectedPath
   }
 
@@ -173,6 +236,9 @@ class OtaStore(private val context: Context) {
   }
 
   @Synchronized fun status(): String = JSONObject().apply {
+    put("telemetryVersion", 1)
+    put("droppedReceipts", state.optInt("droppedReceipts", 0))
+    put("receipts", state.optJSONArray("receipts") ?: JSONArray())
     put("supported", baseline != null && publicKey.isNotEmpty())
     put("runtimeVersion", baseline?.optString("runtimeVersion") ?: "")
     put("baseVersion", baseline?.optString("baseVersion") ?: "")
@@ -182,6 +248,34 @@ class OtaStore(private val context: Context) {
     put("failedVersion", version("failed"))
     put("highestVersion", version("highest"))
   }.toString()
+
+  private val telemetryFile get() = AtomicFile(File(context.noBackupFilesDir, "ota-telemetry.json"))
+  @Synchronized fun readTelemetry(): String {
+    return try { telemetryFile.openRead().bufferedReader().use { it.readText() } }
+    catch (_: java.io.FileNotFoundException) {
+      val initial = JSONObject().put("installationId", UUID.randomUUID().toString()).put("queue", JSONArray()).toString()
+      writeTelemetry(initial)
+      initial
+    }
+  }
+  @Synchronized fun writeTelemetry(value: String): Boolean {
+    check(value.toByteArray().size <= 131072) { "Telemetry capacity exceeded" }
+    JSONObject(value)
+    val file = telemetryFile
+    val stream = file.startWrite()
+    try { stream.write(value.toByteArray()); file.finishWrite(stream) }
+    catch (error: Exception) { file.failWrite(stream); throw error }
+    return true
+  }
+  @Synchronized fun ackTelemetry(value: String): Boolean {
+    val ids = JSONArray(value)
+    val accepted = (0 until ids.length()).map { ids.getString(it) }.toSet()
+    val events = state.optJSONArray("receipts") ?: return true
+    val retained = JSONArray()
+    for (i in 0 until events.length()) if (events.getJSONObject(i).getJSONObject("event").getString("eventId") !in accepted) retained.put(events.get(i))
+    save(JSONObject(state.toString()).put("receipts", retained))
+    return true
+  }
 
   companion object {
     @Volatile private var instance: OtaStore? = null

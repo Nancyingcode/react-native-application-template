@@ -235,4 +235,6 @@ POST /v1/commerce/payments/status
 
 在品牌配置的 `environments.<environment>` 中设置可选的 `otaQueryUrl`，值为平台的完整 HTTPS 查询地址，例如 `https://updates.example.com/v1/apps/<app-UUID>/updates`。不配置时首页仍显示“检查更新”，点击会提示未开放在线更新；不要把平台管理员 token 放进 App。
 
-首页入口读取原生 OTA 状态，以 `max(currentVersion, highestVersion)` 查询，避免重新推荐已经失败或暂存的版本。显示检查中、暂无更新、发现更新、待重启、不支持和失败状态。本次入口只查询，不自动下载或安装；既有 `ota.stage()` 的签名与兼容性校验流程保持不变。
+首页入口读取原生 OTA 状态，按当前版本和最高水位查询，避免重新推荐已经失败或暂存的版本。P5 支持稳定安装标识、分配关联和显式“下载更新”；暂存完成后下次冷启动试运行，不自动重启。原生持久化真实下载、暂存、确认和恢复回执，前台队列支持离线补发。既有 `ota.stage()` 的签名、兼容性与恢复校验保持不变。
+
+P5 可靠遥测需要包含新增原生接口的 Android/iOS 安装包；旧包保持兼容但无可靠遥测，不能仅 OTA 补齐原生能力。协议、队列限额、统计和验证边界见 [OTA 文档](docs/ota.md)及相邻平台 [P5 说明](../over-the-air-platform/docs/P5-telemetry.md)。

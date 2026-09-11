@@ -19,6 +19,9 @@ export interface BundleManifest {
 }
 
 export interface OtaStatus {
+  telemetryVersion?: 1;
+  droppedReceipts?: number;
+  receipts?: import('./telemetry').Receipt[];
   supported: boolean;
   runtimeVersion: string;
   baseVersion: string;

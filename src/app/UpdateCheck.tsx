@@ -3,11 +3,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useApplication } from './ApplicationProvider';
 import { ota } from '../core/ota';
 import { queryUpdate } from '../core/ota/query';
+import { telemetryIdentity, rememberAssignment } from '../core/ota/telemetry';
 
 export function UpdateCheck(): React.JSX.Element {
   const { brand, environment, locale } = useApplication();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [manifestUrl, setManifestUrl] = useState<string>();
   const inFlight = useRef(false);
   const chinese = locale.toLowerCase().startsWith('zh');
   const colors = brand.theme.colors;
@@ -25,6 +27,7 @@ export function UpdateCheck(): React.JSX.Element {
     inFlight.current = true;
     setBusy(true);
     setMessage('');
+    setManifestUrl(undefined);
     try {
       const status = await ota.getStatus();
       if (!status.supported) {
@@ -43,8 +46,11 @@ export function UpdateCheck(): React.JSX.Element {
         );
         return;
       }
-      const result = await queryUpdate(endpoint, status);
+      const installationId = await telemetryIdentity();
+      const result = await queryUpdate(endpoint, status, installationId);
+      await rememberAssignment(endpoint, status, result, installationId);
       if (result.updateAvailable) {
+        setManifestUrl(result.manifestUrl);
         setMessage(
           chinese
             ? `发现可用更新：${result.bundleVersion}`
@@ -85,6 +91,44 @@ export function UpdateCheck(): React.JSX.Element {
           {busy ? (chinese ? '正在检查…' : 'Checking…') : label}
         </Text>
       </Pressable>
+      {manifestUrl && (
+        <Pressable
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={async () => {
+            if (inFlight.current) return;
+            inFlight.current = true;
+            setBusy(true);
+            setMessage(
+              chinese ? '正在下载并校验…' : 'Downloading and validating…',
+            );
+            try {
+              await ota.stage(manifestUrl);
+              setManifestUrl(undefined);
+              setMessage(
+                chinese
+                  ? '下载完成，关闭并重新打开应用后试运行。'
+                  : 'Download complete. Close and reopen to try the update.',
+              );
+            } catch {
+              setManifestUrl(undefined);
+              setMessage(
+                chinese
+                  ? '下载或暂存失败，请重新检查更新。'
+                  : 'Download or staging failed. Check for updates again.',
+              );
+            } finally {
+              inFlight.current = false;
+              setBusy(false);
+            }
+          }}
+          style={styles.button}
+        >
+          <Text style={{ color: colors.primary }}>
+            {chinese ? '下载更新（下次启动生效）' : 'Download for next launch'}
+          </Text>
+        </Pressable>
+      )}
       {message ? (
         <Text
           accessibilityLiveRegion="polite"
