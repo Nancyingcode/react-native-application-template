@@ -9,6 +9,7 @@ import {
 import { LoginScreen } from './LoginScreen';
 import { ProfileScreen } from './ProfileScreen';
 import { profileTranslations } from './profileTranslations';
+import { logoutTranslations } from './logout/translations';
 
 export const authModule: AppModuleFactory = {
   id: 'auth',
@@ -91,6 +92,7 @@ export const authModule: AppModuleFactory = {
     translations: {
       'zh-CN': {
         ...smsTranslations['zh-CN'],
+        ...logoutTranslations['zh-CN'],
         ...profileTranslations['zh-CN'],
         'module.auth.title': '登录',
         'auth.login.accountPassword.title': '账号密码登录',
@@ -149,6 +151,7 @@ export const authModule: AppModuleFactory = {
       },
       'en-US': {
         ...smsTranslations['en-US'],
+        ...logoutTranslations['en-US'],
         ...profileTranslations['en-US'],
         'module.auth.title': 'Sign in',
         'auth.login.accountPassword.title': 'Sign in with password',

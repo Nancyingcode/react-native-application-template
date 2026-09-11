@@ -159,7 +159,7 @@ export class HttpClient {
         }
         const requestId = response.headers.get('X-Request-Id') ?? undefined;
         if (!response.ok) {
-          const details = (await safeJson(response)) as {
+          const details = ((await safeJson(response)) ?? {}) as {
             message?: string;
             code?: string;
           };

@@ -43,6 +43,21 @@ function createClient() {
 }
 
 describe('HttpClient authentication', () => {
+  it.each([null, 'null', '<html>Unavailable</html>'])(
+    'preserves the HTTP error for an empty or non-JSON response: %s',
+    async body => {
+      const { client, fetcher } = createClient();
+      fetcher.mockResolvedValue(new Response(body, { status: 503 }));
+      await expect(
+        client.request('/api/v1/auth/logout', {
+          method: 'POST',
+          authenticated: false,
+          retry: 0,
+        }),
+      ).rejects.toMatchObject({ status: 503, code: 'HTTP_ERROR' });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
   afterEach(() => {
     jest.restoreAllMocks();
   });

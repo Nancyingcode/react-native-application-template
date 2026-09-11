@@ -261,3 +261,12 @@ T6→T7 仅 navigate('CommercePayment', {orderId})；T8→T9 把数量转十进�
 | npm run bundle:ios | 同上 | 原命令在沙箱外通过 |
 
 日志保存在忽略目录 `artifacts/t0-before-*.log`、`artifacts/t0-after-*.log`（typecheck/lint 提取后为命令直接输出）。额外核对提取前后全部 JSX 语法树及样式属性：商城 88 处样式引用定义、认证 25 处样式定义一致；商城两语言全部翻译键值一致，`git diff --check` 通过。未触及页面结构、样式值或业务功能，因此本次未启动原生 App 做视觉重验；未进行 Android 原生包、iOS Xcode/真机、短信发送、真实购物车下单或支付联调。原始 Bundle 失败发生在改动前，未通过修改构建逻辑规避；提取中临时 `.tsx` 核对副本曾被 typecheck 扫入，已改为忽略目录下 `.txt` 后通过，无生产代码类型失败遗留。
+
+
+## T12 第一批交接（2026-09-12）
+
+当前工作区已具备 T1/T2 新协议代码；T3–T11 尚未交付。T12 本批接入退出操作区和中英文翻译，保留已有短信及扫码路由、品牌开关和权限过滤。ProfileSessionActions 由 ApplicationShell 在资料导航下持续挂载，让本地退出后的服务端撤销结果可见；不保留已撤销权限的资料内容。
+
+App 总测试增加取消退出、匿名 refreshToken 撤销请求、移除个人资料、503 不自动重放及失败结果可见的整链路断言。该测试使用模拟 HTTP，不代表真实服务联调。
+
+后续必须交付 T3–T11 所属页面、translations 与公开 port，补齐冻结 Swagger 快照及状态规则文件，再按既定依赖顺序装配商城。T12 保持部分完成状态，不能标记最终验收通过。

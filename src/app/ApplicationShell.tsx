@@ -13,6 +13,7 @@ import { useApplication } from './ApplicationProvider';
 import { LocaleSwitcher } from './LocaleSwitcher';
 import { UpdateCheck } from './UpdateCheck';
 import { AppNavigationProvider, type RouteParams } from './navigation';
+import { ProfileSessionActions } from '../modules/auth/ProfileSessionActions';
 
 interface NavigationEntry {
   routeName: string;
@@ -64,6 +65,7 @@ export function ApplicationShell(): React.JSX.Element {
           </AppNavigationProvider>
         )}
       </View>
+      {routeName === 'Profile' ? <ProfileSessionActions /> : null}
       <ShellNavigation
         routeName={routeName}
         navigate={navigate}

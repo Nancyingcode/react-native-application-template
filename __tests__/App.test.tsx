@@ -17,7 +17,13 @@ test('renders correctly', async () => {
 });
 
 test('opens profile and preserves QR authorization after authenticating', async () => {
+  let finishLogout: (response: Response) => void = () => {};
   const fetcher = jest.spyOn(global, 'fetch').mockImplementation(async url => {
+    if (String(url).endsWith('/api/v1/auth/logout')) {
+      return new Promise<Response>(resolve => {
+        finishLogout = resolve;
+      });
+    }
     if (String(url).endsWith('/api/v1/auth/login')) {
       return new Response(
         JSON.stringify({
@@ -157,6 +163,49 @@ test('opens profile and preserves QR authorization after authenticating', async 
   visible('phone-login-phone');
   visible('phone-login-code');
   visible('phone-login-send-code');
+  await ReactTestRenderer.act(() => {
+    renderer!.root
+      .findByProps({
+        accessibilityLabel: '首页',
+        accessibilityRole: 'tab',
+      })
+      .props.onPress();
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer!.root
+      .findAllByProps({
+        accessibilityLabel: '个人资料',
+        accessibilityRole: 'button',
+      })
+      .find(item => typeof item.props.onPress === 'function')!
+      .props.onPress();
+  });
+  await ReactTestRenderer.act(() => press('logout-button'));
+  await ReactTestRenderer.act(() => press('logout-cancel'));
+  expect(
+    fetcher.mock.calls.filter(([url]) =>
+      String(url).endsWith('/api/v1/auth/logout'),
+    ),
+  ).toHaveLength(0);
+  await ReactTestRenderer.act(() => press('logout-button'));
+  await ReactTestRenderer.act(async () => press('logout-confirm'));
+  expect(
+    renderer!.root.findAllByProps({ children: 'Profile Customer' }),
+  ).toHaveLength(0);
+  visible('logout-button');
+  await ReactTestRenderer.act(async () =>
+    finishLogout(new Response(null, { status: 503 })),
+  );
+  expect(
+    renderer!.root.findByProps({ testID: 'logout-result' }).props.children,
+  ).toContain('远端会话撤销尚未确认');
+  const logoutCalls = fetcher.mock.calls.filter(([url]) =>
+    String(url).endsWith('/api/v1/auth/logout'),
+  );
+  expect(logoutCalls).toHaveLength(1);
+  expect(JSON.parse(String(logoutCalls[0][1]?.body))).toEqual({
+    refreshToken: 'refresh-1',
+  });
   await ReactTestRenderer.act(() => renderer!.unmount());
   fetcher.mockRestore();
 });
