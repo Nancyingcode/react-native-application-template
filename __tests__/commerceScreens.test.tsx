@@ -1,5 +1,5 @@
 import React from 'react';
-import { FlatList, Text } from 'react-native';
+import { FlatList, Text, TextInput } from 'react-native';
 import ReactTestRenderer, { act } from 'react-test-renderer';
 import App from '../App';
 import { ConsoleLogger } from '../src/core/logger';
@@ -85,6 +85,7 @@ describe('commerce screen integration', () => {
       status: 'ACTIVE',
     };
     let quantity = 0;
+    let unread = 1;
     const serverCart = () => ({
       userId: 'shopper-1',
       items: quantity
@@ -122,6 +123,72 @@ describe('commerce screen integration', () => {
           });
           quantity += 1;
           return response(serverCart());
+        }
+        if (String(url).endsWith('/api/v1/notifications/unread-count'))
+          return response({ count: unread });
+        if (String(url).includes('/api/v1/notifications/cursor'))
+          return response({
+            items: [
+              {
+                id: 'notice',
+                userId: 'shopper-1',
+                channel: 'IN_APP',
+                title: 'Integration message',
+                content: 'Hello',
+                status: unread ? 'SENT' : 'READ',
+                readAt: unread ? null : '2026-09-12',
+                createdAt: '2026-09-12',
+              },
+            ],
+            nextCursor: null,
+          });
+        if (String(url).endsWith('/api/v1/notifications/notice/read')) {
+          unread = 0;
+          return response({ id: 'notice', read: true });
+        }
+        if (String(url).endsWith('/api/v1/members/me'))
+          return response({
+            userId: 'shopper-1',
+            createdAt: '2026-09-12',
+            growthValue: 1,
+            levelConfig: { name: 'Silver', freeShipping: false },
+          });
+        if (String(url).endsWith('/api/v1/points/account'))
+          return response({
+            userId: 'shopper-1',
+            available: 1,
+            frozen: 0,
+            totalEarned: 1,
+            totalSpent: 0,
+          });
+        if (String(url).endsWith('/api/v1/coupons/available'))
+          return response([
+            {
+              id: '11111111-1111-4111-8111-111111111111',
+              couponTemplateId: '22222222-2222-4222-8222-222222222222',
+              name: 'Integration coupon',
+              type: 'FIXED',
+              status: 'AVAILABLE',
+              validFrom: '2026-01-01',
+              validUntil: '2027-01-01',
+              orderId: null,
+              unavailableReason: null,
+            },
+          ]);
+        if (String(url).endsWith('/api/v1/pricing/preview')) {
+          expect(JSON.parse(String(options?.body))).toEqual({
+            items: [{ skuId: sku.id, quantity: 1 }],
+            couponId: '11111111-1111-4111-8111-111111111111',
+          });
+          return response({
+            originalAmount: '129',
+            promotionDiscountAmount: '0',
+            couponDiscountAmount: '9',
+            shippingAmount: '0',
+            shippingDiscountAmount: '0',
+            discountAmount: '9',
+            payableAmount: '120',
+          });
         }
         if (String(url).endsWith('/api/v1/cart')) return response(serverCart());
         if (String(url).endsWith('/api/v1/auth/login')) {
@@ -226,7 +293,23 @@ describe('commerce screen integration', () => {
     await press('商城');
     await press('购物车，1 件商品');
     await press('去结算');
-    expect(hasText('结算暂不可用')).toBe(true);
+    expect(hasText('确认订单')).toBe(true);
+    await press('选择优惠券: Integration coupon', 'radio');
+    for (const label of ['收货人', '联系电话', '省 / 州', '城市', '详细地址']) {
+      await act(async () =>
+        renderer.root
+          .findAllByType(TextInput)
+          .find(input => input.props.accessibilityLabel === label)!
+          .props.onChangeText('Test'),
+      );
+    }
+    await press('试算价格');
+    expect(
+      fetcher.mock.calls.some(([url]) =>
+        String(url).endsWith('/api/v1/pricing/preview'),
+      ),
+    ).toBe(true);
+    expect(hasText('120')).toBe(true);
     expect(
       fetcher.mock.calls.some(
         ([url]) =>
@@ -238,6 +321,14 @@ describe('commerce screen integration', () => {
     await press('更多', 'tab');
     expect(selected('购物车', 'button')).toBe(true);
     expect(selected('商城', 'button')).toBe(false);
+    await press('会员与积分');
+    await press('未读消息：1');
+    expect(hasText('Integration message')).toBe(true);
+    await press('标为已读：Integration message');
+    expect(hasText('未读消息：0')).toBe(true);
+    await press('更多', 'tab');
+    await press('会员与积分');
+    expect(hasText('未读消息：0')).toBe(true);
   });
 
   it('retries a failed initial request and displays a real empty catalog', async () => {

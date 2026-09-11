@@ -275,15 +275,16 @@ function ShellNavigation({
   const { brand, services, application } = useApplication();
   const insets = useSafeAreaInsets();
   const colors = brand.theme.colors;
-  let menuRouteName =
-    routeName === 'CommerceProductDetail'
-      ? 'CommerceProducts'
-      : routeName === 'CommerceCheckout'
-      ? 'CommerceCart'
-      : routeName;
-  if (routeName === 'Register') {
-    menuRouteName = 'Login';
-  }
+  const parentMenus: Record<string, string> = {
+    CommerceProductDetail: 'CommerceProducts',
+    CommerceCheckout: 'CommerceCart',
+    CommercePayment: 'CommerceOrders',
+    CommerceOrderDetail: 'CommerceOrders',
+    CommerceAfterSale: 'CommerceOrders',
+    CommerceSeckillDetail: 'CommerceSeckill',
+    Register: 'Login',
+  };
+  const menuRouteName = parentMenus[routeName] ?? routeName;
   const primaryMenu = application.menu.slice(0, 3);
   const secondaryMenu = application.menu.slice(3);
   const secondaryActive = secondaryMenu.some(
@@ -363,7 +364,7 @@ function ShellNavigation({
             <Text style={[styles.sheetTitle, { color: colors.text }]}>
               {services.i18n.t('app.more')}
             </Text>
-            <View style={styles.moreList}>
+            <ScrollView contentContainerStyle={styles.moreList}>
               {secondaryMenu.map(item => {
                 const active = menuRouteName === item.route;
                 return (
@@ -411,7 +412,7 @@ function ShellNavigation({
                   </Pressable>
                 );
               })}
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -623,6 +624,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(16, 24, 40, 0.42)',
   },
   moreSheet: {
+    maxHeight: '85%',
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     paddingTop: 10,
